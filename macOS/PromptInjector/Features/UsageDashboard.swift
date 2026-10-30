@@ -41,7 +41,7 @@ final class UsageChart: FlippedView {
         for i in 0...3 {
             let y = baseline - CGFloat(i) / 3 * (baseline - top)
             Theme.border.setStroke(); let line = NSBezierPath(); line.move(to: NSPoint(x: left, y: y)); line.line(to: NSPoint(x: right, y: y)); line.lineWidth = 1; line.stroke()
-            (String(Int(peak * Double(i) / 3)) as NSString).draw(at: NSPoint(x: 0, y: y - 6), withAttributes: attrs)
+            Theme.drawLine(String(Int(peak * Double(i) / 3)), font: .systemFont(ofSize: 10), color: Theme.tertiary, in: NSRect(x: 0, y: y - 10, width: 28, height: 20))
         }
         func points(_ values: [Double]) -> [NSPoint] { values.enumerated().map { NSPoint(x: left + CGFloat($0.offset) / CGFloat(max(1, buckets - 1)) * (right - left), y: baseline - CGFloat($0.element / peak) * (baseline - top)) } }
         func append(_ values: [NSPoint], to path: NSBezierPath, move: Bool) {
@@ -72,7 +72,7 @@ final class UsageChart: FlippedView {
         for (i, category) in PromptCategory.all.enumerated() {
             let x = left + CGFloat(i) * (right - left) / 5
             DesignAssets.image("Dot-" + category.id, template: false)?.draw(in: NSRect(x: x - 10, y: 184, width: 27, height: 27), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
-            ("\(category.name) · \(counts[category.id] ?? 0)" as NSString).draw(at: NSPoint(x: x + 12, y: 191), withAttributes: attrs)
+            Theme.drawLine("\(category.name) · \(counts[category.id] ?? 0)", font: .systemFont(ofSize: 10), color: Theme.tertiary, in: NSRect(x: x + 12, y: 187.5, width: (right - left) / 5 - 16, height: 20))
         }
         if records.isEmpty {
             let empty = "暂无使用记录" as NSString
@@ -88,14 +88,24 @@ final class CategoryDistribution: FlippedView {
             let y = CGFloat(i) * 48
             DesignAssets.image("Dot-" + category.id, template: false)?.draw(in: NSRect(x: -10, y: y - 3, width: 27, height: 27), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
             let count = summary.categoryCounts[category.id] ?? 0
-            let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: Theme.text]
-            (category.name as NSString).draw(at: NSPoint(x: 15, y: y + 4), withAttributes: attrs)
-            let value = String(format: "%d 次 · %.1f%%", count, Double(count) / Double(max(1, summary.total)) * 100) as NSString
-            let secondary: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: Theme.secondary]
-            value.draw(at: NSPoint(x: bounds.width - value.size(withAttributes: secondary).width, y: y + 4), withAttributes: secondary)
+            Theme.drawLine(category.name, font: .systemFont(ofSize: 12), color: Theme.text, in: NSRect(x: 15, y: y, width: 90, height: 21))
+            let value = String(format: "%d 次 · %.1f%%", count, Double(count) / Double(max(1, summary.total)) * 100)
+            Theme.drawLine(value, font: .systemFont(ofSize: 11), color: Theme.secondary, in: NSRect(x: 100, y: y, width: bounds.width - 100, height: 21), alignment: .right)
             Theme.border.setFill(); NSBezierPath(roundedRect: NSRect(x: 0, y: y + 29, width: bounds.width, height: 4), xRadius: 2, yRadius: 2).fill()
             Theme.categoryColor(category.id).setFill(); NSBezierPath(roundedRect: NSRect(x: 0, y: y + 29, width: bounds.width * CGFloat(count) / CGFloat(max(1, summary.total)), height: 4), xRadius: 2, yRadius: 2).fill()
         }
+    }
+}
+
+final class UsageTableCell: NSTableCellView {
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        let field = Theme.label(size: 12); textField = field; addSubview(field)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func layout() {
+        super.layout()
+        if let textField { Theme.placeLine(textField, in: bounds) }
     }
 }
 
@@ -178,7 +188,7 @@ final class CategoryDistribution: FlippedView {
     func numberOfRows(in tableView: NSTableView) -> Int { ranks.count }
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? { PromptRow() }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        guard ranks.indices.contains(row) else { return nil }; let rank = ranks[row], field = Theme.label(size: 12)
+        guard ranks.indices.contains(row) else { return nil }; let rank = ranks[row], cell = UsageTableCell(), field = cell.textField!
         switch tableColumn?.identifier.rawValue {
         case "total": field.stringValue = String(rank.total)
         case "insert": field.stringValue = String(rank.insertions)
@@ -186,7 +196,7 @@ final class CategoryDistribution: FlippedView {
         case "last": let f = DateFormatter(); f.dateFormat = "M月d日"; field.stringValue = f.string(from: rank.last)
         default: field.stringValue = "\(row + 1)  " + rank.title
         }
-        field.toolTip = rank.title; return field
+        cell.toolTip = rank.title; return cell
     }
     override func layout() {
         super.layout(); scroll.frame = bounds; let width = scroll.contentSize.width, main = width - 64

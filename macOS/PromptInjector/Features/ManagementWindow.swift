@@ -33,11 +33,9 @@ final class SidebarItem: NSButton {
             // SVG icons retain the Figma viewBox; tint is applied by AppKit at draw time.
             image.draw(in: NSRect(x: 12, y: bounds.midY - 9, width: 18, height: 18), from: .zero, operation: .sourceOver, fraction: selected ? 1 : 0.68, respectFlipped: true, hints: nil)
         }
-        (label as NSString).draw(in: NSRect(x: category == nil ? 38 : 29, y: bounds.midY - 10, width: bounds.width - 58, height: 20), withAttributes: [.font: NSFont.systemFont(ofSize: 13), .foregroundColor: color])
+        Theme.drawLine(label, font: .systemFont(ofSize: 13), color: color, in: NSRect(x: category == nil ? 38 : 29, y: 0, width: bounds.width - 58, height: bounds.height))
         if let count {
-            let text = String(count) as NSString
-            let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: Theme.tertiary]
-            text.draw(at: NSPoint(x: bounds.width - 12 - text.size(withAttributes: attrs).width, y: bounds.midY - 8), withAttributes: attrs)
+            Theme.drawLine(String(count), font: .systemFont(ofSize: 12), color: Theme.tertiary, in: NSRect(x: bounds.width - 52, y: 0, width: 40, height: bounds.height), alignment: .right)
         }
     }
 }
@@ -57,7 +55,7 @@ final class SearchBox: SurfaceView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override func layout() {
         super.layout(); icon.frame = NSRect(x: 12, y: 11.5, width: 17, height: 17)
-        field.frame = NSRect(x: 37, y: 9, width: max(60, bounds.width - 49), height: 22)
+        Theme.placeLine(field, in: NSRect(x: 37, y: 0, width: max(60, bounds.width - 49), height: bounds.height), stableBaseline: true)
     }
 }
 
@@ -77,7 +75,7 @@ final class SearchBox: SurfaceView {
     let subtitle = Theme.label(size: 12, color: Theme.secondary)
     let band = SurfaceView(color: Theme.band, radius: 16, border: nil)
     let search = SearchBox()
-    let newButton = ActionButton(title: "新建条目", symbol: "plus", primary: true, target: nil, action: nil)
+    let newButton = ActionButton(title: "", symbol: "plus", primary: true, target: nil, action: nil)
     let statusLabel = Theme.label("尚未保存", size: 13)
     private let statusDot = NSImageView()
     let requiredLabel = Theme.label(size: 12, color: Theme.secondary)
@@ -95,6 +93,7 @@ final class SearchBox: SurfaceView {
         [search, newButton, statusDot, statusLabel, requiredLabel, cancelButton, saveButton].forEach(band.addSubview)
         statusDot.image = DesignAssets.image("Status"); statusDot.contentTintColor = Theme.hex(0xF5D975)
         cancelButton.outlined = true
+        newButton.toolTip = "新建条目"; newButton.setAccessibilityLabel("新建条目")
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override var mouseDownCanMoveWindow: Bool { true }
@@ -102,7 +101,7 @@ final class SearchBox: SurfaceView {
         super.layout(); let w = bounds.width, h = bounds.height, main = w - 280
         sidebar.frame = NSRect(x: 0, y: 0, width: 216, height: h)
         logo.frame = NSRect(x: 20, y: 40, width: 32, height: 32)
-        brand.frame = NSRect(x: 62, y: 45, width: 140, height: 22)
+        Theme.placeLine(brand, in: NSRect(x: 62, y: 40, width: 140, height: 32))
         all.frame = NSRect(x: 20, y: 90, width: 176, height: 40); stats.frame = NSRect(x: 20, y: 140, width: 176, height: 40)
         sidebarRule.frame = NSRect(x: 20, y: 190, width: 176, height: 1); categoryLabel.frame = NSRect(x: 20, y: 201, width: 176, height: 18)
         for (i, item) in categoryItems.enumerated() { item.frame = NSRect(x: 20, y: 229 + CGFloat(i) * 54, width: 176, height: 44) }
@@ -111,11 +110,11 @@ final class SearchBox: SurfaceView {
         title.frame = NSRect(x: 248, y: 32, width: main, height: 36); subtitle.frame = NSRect(x: 248, y: 70, width: main, height: 18)
         band.frame = NSRect(x: 248, y: 108, width: main, height: 64)
         search.frame = NSRect(x: 16, y: 12, width: min(360, main - 280), height: 40)
-        newButton.frame = NSRect(x: main - 136, y: 12, width: 120, height: 40)
+        newButton.frame = NSRect(x: main - 56, y: 12, width: 40, height: 40)
         statusDot.frame = NSRect(x: 16, y: 28.5, width: 7, height: 7)
         statusDot.contentTintColor = statusLabel.stringValue.contains("失败") ? Theme.error : Theme.hex(0xF5D975)
-        statusLabel.frame = NSRect(x: 35, y: 22, width: 100, height: 20)
-        requiredLabel.frame = NSRect(x: 145, y: 22, width: max(100, main - 385), height: 20)
+        Theme.placeLine(statusLabel, in: NSRect(x: 35, y: 12, width: 100, height: 40))
+        Theme.placeLine(requiredLabel, in: NSRect(x: 145, y: 12, width: max(100, main - 385), height: 40))
         cancelButton.frame = NSRect(x: main - 224, y: 12, width: 76, height: 40); saveButton.frame = NSRect(x: main - 132, y: 12, width: 116, height: 40)
         libraryView.frame = NSRect(x: 248, y: 192, width: main, height: max(360, h - 264))
         editor?.frame = libraryView.frame

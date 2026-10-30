@@ -41,6 +41,7 @@ extension AppDelegate {
         func iconPixels(_ image: NSImage?) -> NSBitmapImageRep? {
             guard let image, let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 64, pixelsHigh: 64, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 256, bitsPerPixel: 32), let context = NSGraphicsContext(bitmapImageRep: bitmap) else { return nil }
             NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = context
+            context.cgContext.clear(NSRect(x: 0, y: 0, width: 64, height: 64))
             image.draw(in: NSRect(x: 0, y: 0, width: 64, height: 64))
             NSGraphicsContext.restoreGraphicsState(); return bitmap
         }
@@ -48,6 +49,13 @@ extension AppDelegate {
             let difference = (0..<(64 * 64 * 4)).reduce(0) { $0 + abs(Int(a[$1]) - Int(b[$1])) }
             checks.append(["name": "application/branded-icon", "passed": difference <= 8 * 64 * 64 * 4, "pixelDifference": difference])
         } else { check("application/branded-icon", false) }
+        let packagedIcon = Bundle.main.url(forResource: "AppIcon", withExtension: "icns").flatMap(NSImage.init(contentsOf:))
+        check("application/transparent-icon-canvas", [NSApp.applicationIconImage, DesignAssets.image("AppIcon", template: false), packagedIcon].allSatisfy { image in
+            guard let bitmap = iconPixels(image) else { return false }
+            return [(0, 0), (32, 0), (63, 0), (0, 32), (63, 32), (0, 63), (32, 63), (63, 63)].allSatisfy { x, y in
+                (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 1) < 0.01
+            } && (bitmap.colorAt(x: 32, y: 32)?.alphaComponent ?? 0) > 0.95
+        })
         check("management/native-window-controls", [.closeButton, .miniaturizeButton, .zoomButton].allSatisfy { window.standardWindowButton($0)?.isEnabled == true })
         check("management/initial-real-library", manager.root.libraryView.items.count == 7)
         check("assets/all-figma-assets-load", ["Logo", "Grid", "Chart", "Search", "Plus", "Down", "Copy", "Edit", "Check", "Back", "Close", "Insert", "Chevron", "Status", "Dot-requirements", "Dot-coding", "Dot-debugging", "Dot-review", "Dot-release", "MenuBar", "AppIcon"].allSatisfy { DesignAssets.image($0, template: false)?.size.width ?? 0 > 0 })

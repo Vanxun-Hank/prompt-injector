@@ -1,8 +1,63 @@
 import XCTest
 import AppKit
+import CoreText
 @testable import PromptInjector
 
 final class NavigationTests: XCTestCase {
+    @MainActor func testAppIconHasTransparentCanvasOutsideDarkTile() throws {
+        let image = try XCTUnwrap(DesignAssets.image("AppIcon", template: false))
+        let bitmap = try XCTUnwrap(image.tiffRepresentation.flatMap(NSBitmapImageRep.init(data:)))
+        for (x, y) in [(0, 0), (0.5, 0), (1, 0), (0, 0.5), (1, 0.5), (0, 1), (0.5, 1), (1, 1)] {
+            let color = try XCTUnwrap(bitmap.colorAt(x: Int(x * Double(bitmap.pixelsWide - 1)), y: Int(y * Double(bitmap.pixelsHigh - 1))))
+            XCTAssertLessThan(color.alphaComponent, 0.01, "Outer canvas must be transparent")
+        }
+        XCTAssertGreaterThan(try XCTUnwrap(bitmap.colorAt(x: bitmap.pixelsWide / 2, y: bitmap.pixelsHigh / 2)).alphaComponent, 0.95)
+    }
+
+    @MainActor func testIconAndVisibleTextShareCenterline() {
+        func inkCenter(_ field: NSTextField, in parent: NSView, text: String) -> CGFloat {
+            let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: [.font: field.font!]))
+            let ink = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
+            let fromTop = field.firstBaselineOffsetFromTop - ink.midY
+            return parent.isFlipped ? field.frame.minY + fromTop : field.frame.maxY - fromTop
+        }
+        let row = PromptCell(frame: NSRect(x: 0, y: 0, width: 326, height: 44))
+        row.category = true; row.title.stringValue = "需求对接"; row.count.stringValue = "12"; row.layout()
+        XCTAssertEqual(inkCenter(row.title, in: row, text: row.title.stringValue), row.chevron.frame.midY, accuracy: 1)
+        XCTAssertEqual(inkCenter(row.count, in: row, text: row.count.stringValue), row.chevron.frame.midY, accuracy: 1)
+        let search = SearchBox(); search.frame = NSRect(x: 0, y: 0, width: 360, height: 40); search.layout()
+        let icon = search.subviews.compactMap { $0 as? NSImageView }.first!
+        XCTAssertEqual(inkCenter(search.field, in: search, text: "搜索标题和简述"), icon.frame.midY, accuracy: 1)
+    }
+
+    @MainActor func testRowSpacingDoesNotSelectCompactTextLayout() {
+        let row = PromptCell(frame: NSRect(x: 0, y: 0, width: 570, height: 72))
+        row.title.stringValue = "标题"; row.summary.stringValue = "简述"; row.layout()
+        XCTAssertEqual(row.summary.maximumNumberOfLines, 1)
+        func inkRect(_ field: NSTextField) -> NSRect {
+            let line = CTLineCreateWithAttributedString(NSAttributedString(string: field.stringValue, attributes: [.font: field.font!]))
+            let ink = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
+            return ink.offsetBy(dx: field.frame.minX, dy: field.frame.maxY - field.firstBaselineOffsetFromTop)
+        }
+        XCTAssertEqual(inkRect(row.title).union(inkRect(row.summary)).midY, row.chevron.frame.midY, accuracy: 1)
+    }
+
+    @MainActor func testDrawnLabelsCenterVisibleInkInBothCoordinateDirections() throws {
+        for flipped in [false, true] {
+            let bitmap = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 160, pixelsHigh: 44, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 640, bitsPerPixel: 32))
+            let graphics = try XCTUnwrap(NSGraphicsContext(bitmapImageRep: bitmap))
+            graphics.cgContext.clear(NSRect(x: 0, y: 0, width: 160, height: 44))
+            NSGraphicsContext.saveGraphicsState()
+            if flipped { graphics.cgContext.translateBy(x: 0, y: 44); graphics.cgContext.scaleBy(x: 1, y: -1) }
+            NSGraphicsContext.current = NSGraphicsContext(cgContext: graphics.cgContext, flipped: flipped)
+            Theme.drawLine("需求对接 12", font: .systemFont(ofSize: 13), color: .white, in: NSRect(x: 10, y: 0, width: 140, height: 44))
+            NSGraphicsContext.restoreGraphicsState()
+            let rows = (0..<44).filter { y in (0..<160).contains { x in (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.5 } }
+            XCTAssertFalse(rows.isEmpty)
+            if let first = rows.first, let last = rows.last { XCTAssertEqual(CGFloat(first + last + 1) / 2, 22, accuracy: 1) }
+        }
+    }
+
     func testBackRestoresIndependentSelectionAndScroll() {
         var state = NavigationState()
         state.remember(selection: 2, scrollY: 40)

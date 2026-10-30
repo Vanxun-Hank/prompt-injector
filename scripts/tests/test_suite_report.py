@@ -18,7 +18,7 @@ class SuiteReportTests(unittest.TestCase):
         names += ['statistics/all-columns-fit','management/native-window-controls',
                   'management/native-close-hides','management/native-minimize','management/native-zoom',
                   'management/native-fullscreen-space','management/native-fullscreen-exit',
-                  'management/regular-application','application/branded-icon',
+                  'management/regular-application','application/branded-icon','application/transparent-icon-canvas',
                   'keyboard/blocked-command-return-no-route','keyboard/recovered-command-return-routes']
         names += ['capture/management-'+n for n in ['library','editor','original','save-error','statistics','minimum']]
         names += [f'check/{i}' for i in range(90-len(names))]

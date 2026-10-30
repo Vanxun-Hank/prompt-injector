@@ -25,7 +25,7 @@ def validate_ui_report(report):
                 'statistics/all-columns-fit', 'management/native-window-controls',
                 'management/native-close-hides', 'management/native-minimize', 'management/native-zoom',
                 'management/native-fullscreen-space', 'management/native-fullscreen-exit',
-                'management/regular-application', 'application/branded-icon',
+                'management/regular-application', 'application/branded-icon', 'application/transparent-icon-canvas',
                 'keyboard/blocked-command-return-no-route', 'keyboard/recovered-command-return-routes',
                 'capture/management-library', 'capture/management-editor', 'capture/management-original',
                 'capture/management-save-error', 'capture/management-statistics', 'capture/management-minimum'}

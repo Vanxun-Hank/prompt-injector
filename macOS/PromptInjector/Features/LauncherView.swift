@@ -29,6 +29,7 @@ final class PromptCell: NSTableCellView {
     let chevron = NSImageView()
     let count = Theme.label(size: 11, color: Theme.tertiary)
     var category = false
+    var compact = false
     override init(frame: NSRect) {
         super.init(frame: frame)
         [title, summary, count, chevron].forEach(addSubview)
@@ -44,13 +45,19 @@ final class PromptCell: NSTableCellView {
         let start: CGFloat = 12
         chevron.frame = NSRect(x: bounds.width - 22, y: (bounds.height - 10) / 2, width: 6, height: 10)
         count.frame = NSRect(x: bounds.width - 56, y: (bounds.height - 18) / 2, width: 22, height: 18)
-        count.isHidden = !category
-        title.frame = NSRect(x: start, y: category ? (bounds.height - 22) / 2 : bounds.height - 30, width: max(0, bounds.width - start - 64), height: 22)
-        summary.maximumNumberOfLines = bounds.height > 70 ? 2 : 1
-        summary.lineBreakMode = bounds.height > 70 ? .byWordWrapping : .byTruncatingTail
-        summary.cell?.wraps = bounds.height > 70
-        summary.frame = NSRect(x: start, y: bounds.height > 70 ? 8 : 12, width: max(0, bounds.width - start - 36), height: bounds.height > 70 ? 36 : 18)
-        summary.isHidden = category
+        count.isHidden = !category; count.alignment = .right
+        Theme.placeLine(count, in: NSRect(x: bounds.width - 56, y: 0, width: 22, height: bounds.height))
+        summary.maximumNumberOfLines = compact ? 2 : 1
+        summary.lineBreakMode = compact ? .byWordWrapping : .byTruncatingTail
+        summary.cell?.wraps = compact
+        summary.isHidden = category || summary.stringValue.isEmpty
+        let textWidth = max(0, bounds.width - start - 36)
+        let titleHeight = ceil(title.cell?.cellSize.height ?? 17)
+        let summaryHeight = summary.isHidden ? 0 : min(compact ? 36 : 18, ceil(summary.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: textWidth, height: 36)).height ?? 18))
+        let gap: CGFloat = summary.isHidden ? 0 : 4
+        let bottom = (bounds.height - titleHeight - gap - summaryHeight) / 2
+        Theme.placeLine(title, in: NSRect(x: start, y: category ? 0 : bottom + summaryHeight + gap, width: max(0, bounds.width - start - 64), height: category ? bounds.height : titleHeight))
+        Theme.placeLine(summary, in: NSRect(x: start, y: bottom, width: textWidth, height: summaryHeight))
     }
 }
 
@@ -181,7 +188,7 @@ final class PromptTable: NSTableView {
         logo.frame = NSRect(x: edge, y: (hh - 24) / 2, width: 24, height: 24)
         closeButton.frame = NSRect(x: header.bounds.width - (compact ? 12 : 16) - 32, y: (hh - 32) / 2, width: 32, height: 32)
         let titleX = edge + (navigation.page == .categories ? 34 : 42)
-        breadcrumb.frame = NSRect(x: titleX, y: (hh - 22) / 2, width: max(60, header.bounds.width - titleX - 48), height: 22)
+        Theme.placeLine(breadcrumb, in: NSRect(x: titleX, y: 0, width: max(60, header.bounds.width - titleX - 48), height: hh))
         let gap: CGFloat = compact ? 8 : 12
         let content = NSRect(x: edge + 1, y: fh + 2 + gap, width: w - 2 * edge - 2, height: max(80, h - hh - fh - 3 - 2 * gap))
         if contentHost.bounds.size != content.size { pageTransition.cancel() }
@@ -214,6 +221,7 @@ final class PromptTable: NSTableView {
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         guard row >= 0, row < numberOfRows(in: tableView) else { return nil }
         let cell = PromptCell()
+        cell.compact = bounds.width < 450
         if navigation.page == .categories {
             let category = categories[row]
             cell.category = true

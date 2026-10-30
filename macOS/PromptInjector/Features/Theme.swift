@@ -1,4 +1,5 @@
 import AppKit
+import CoreText
 
 enum Theme {
     static let radius: CGFloat = 24
@@ -7,6 +8,32 @@ enum Theme {
     static let tertiary = NSColor(srgbRed: 146/255, green: 146/255, blue: 143/255, alpha: 1)
     static let accent = NSColor(calibratedWhite: 0.76, alpha: 1)
     static let error = hex(0xFFAA9D)
+    static func placeLine(_ field: NSTextField, in rect: NSRect, stableBaseline: Bool = false) {
+        guard let font = field.font else { field.frame = rect; return }
+        let height = min(rect.height, ceil(field.cell?.cellSize(forBounds: rect).height ?? rect.height))
+        field.frame = NSRect(x: rect.minX, y: rect.minY, width: rect.width, height: height)
+        let value = NSMutableAttributedString(attributedString: field.attributedStringValue)
+        value.addAttribute(.font, value: font, range: NSRange(location: 0, length: value.length))
+        let ink = CTLineGetBoundsWithOptions(CTLineCreateWithAttributedString(value), .useGlyphPathBounds)
+        // Editable text keeps its baseline stable while characters change.
+        let middle = stableBaseline || ink.isEmpty ? (font.ascender + font.descender) / 2 : ink.midY
+        let lineHeight = ceil(font.ascender - font.descender + font.leading)
+        let lines = field.maximumNumberOfLines > 1 ? max(1, (height / lineHeight).rounded()) : 1
+        let fromTop = field.firstBaselineOffsetFromTop - middle + (lines - 1) * lineHeight / 2
+        field.frame.origin.y = field.superview?.isFlipped == true ? rect.midY - fromTop : rect.midY - height + fromTop
+    }
+    static func drawLine(_ text: String, font: NSFont, color: NSColor, in rect: NSRect, alignment: NSTextAlignment = .left) {
+        guard let graphics = NSGraphicsContext.current else { return }
+        let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: [.font: font, NSAttributedString.Key(kCTForegroundColorFromContextAttributeName as String): true]))
+        let ink = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
+        guard !ink.isEmpty else { return }
+        let context = graphics.cgContext
+        context.saveGState(); context.clip(to: rect); context.setFillColor(color.cgColor)
+        context.translateBy(x: alignment == .right ? rect.maxX - ink.maxX : rect.minX, y: rect.midY)
+        if graphics.isFlipped { context.scaleBy(x: 1, y: -1) }
+        context.textMatrix = .identity; context.textPosition = NSPoint(x: 0, y: -ink.midY)
+        CTLineDraw(line, context); context.restoreGState()
+    }
     static func label(_ text: String = "", size: CGFloat = 13, weight: NSFont.Weight = .regular, color: NSColor = Theme.text) -> NSTextField {
         let label = NSTextField(labelWithString: text)
         label.font = .systemFont(ofSize: size, weight: weight)

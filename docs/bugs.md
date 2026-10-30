@@ -16,6 +16,8 @@
 | PI-010 | 小窗超长标题只缩小 NSTextView 的 frame，文字布局仍有 234 pt 高，会绘制到下方页签 | 标题布局限为两行并截尾，保留完整 tooltip／原始字段；正文仍独立滚动 | `NavigationTests.testLongTitleDoesNotPaintBehindDetailControls` 修复前 234 > 52 失败，修复后通过；原生长内容截图复核 |
 | PI-011 | 插入失败后 defer 无条件重新启用按钮，错误态仍能通过按钮／⌘Return 发起操作 | 已确认权限／目标／未确认写入失败保持禁用，复制不受影响；新目标捕获成功才恢复，剪贴板与快捷键暂态错误仍可重试 | `NavigationTests.testPermissionFailureDisablesInsertionAndPreservesCopy` 修复前失败；原生 `keyboard/blocked-command-return-no-route` 与恢复检查 |
 | PI-012 | 管理窗口只具备普通缩放行为，应用仍为 accessory 辅助程序，缺少主全屏窗口配置 | 管理窗口增加 fullScreenPrimary，打开后切换 regular 并显式应用品牌图标；Dock 重开管理窗口，提供 ⌃⌘F | 原生 management/native-fullscreen-space 与 native-fullscreen-exit；真实绿色按钮 AX 从 zoom 变为 full screen，点击后记录 fullscreen-entered；application/branded-icon 对实际渲染像素校验 |
+| PI-013 | 文字控件外框居中，但原生文字从框顶部绘制；数字／名称偏离箭头约 2 pt，搜索约 2.6 pt。条目还用包含行距的高度误判紧凑模式 | 统一用原生基线与字形边界对齐，输入基线保持稳定；侧栏与统计手绘文字共用字形居中，排行单元格按行居中，紧凑模式按宽度判断 | `NavigationTests.testIconAndVisibleTextShareCenterline`、`testRowSpacingDoesNotSelectCompactTextLayout` 修复前共 4 处断言失败、修复后通过；`testDrawnLabelsCenterVisibleInkInBothCoordinateDirections` 验证绘制方向。完整套件与 19 张当前截图独立复核通过 |
+| PI-014 | Dock 图标有白色正方形；AppIcon.png 将圆角黑色底板外围白色画布保存为不透明像素，运行时与 ICNS 均沿用该源图 | 保留品牌标志和黑色圆角底板，imagegen 去除外围白底；源图与运行时共用透明 PNG，构建重新生成 ICNS | `NavigationTests.testAppIconHasTransparentCanvasOutsideDarkTile` 旧图 8 个透明断言失败；原生 `application/transparent-icon-canvas` 同时检查源图、运行时图标和打包 ICNS，完整套件通过。已正常重启；Dock 工具目标超时，未目测实际 Dock |
 
 ## 系统排查中应保留的判断
 

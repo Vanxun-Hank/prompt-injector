@@ -108,12 +108,14 @@ final class EditorText: SurfaceView {
         infoScroll.frame = info.bounds.insetBy(dx: 1, dy: 1); infoBody.frame = NSRect(x: 0, y: 0, width: iw - 2, height: max(h - 2, 512))
         infoHeading.frame = NSRect(x: 24, y: 24, width: iw - 48, height: 24)
         for (label, y) in zip(labels, [CGFloat(74), 162, 250, 386]) { label.frame = NSRect(x: 24, y: y, width: iw - 48, height: 18) }
-        titleBox.frame = NSRect(x: 24, y: 98, width: iw - 48, height: 44); titleField.frame = NSRect(x: 12, y: 11, width: iw - 72, height: 22)
+        titleBox.frame = NSRect(x: 24, y: 98, width: iw - 48, height: 44)
+        Theme.placeLine(titleField, in: NSRect(x: 12, y: 0, width: iw - 72, height: 44), stableBaseline: true)
         categoryBox.frame = NSRect(x: 24, y: 186, width: iw - 48, height: 44)
         dot?.frame = NSRect(x: 12, y: 18.5, width: 7, height: 7); categoryButton.frame = NSRect(x: 27, y: 5, width: iw - 88, height: 34)
         categoryArrow.frame = NSRect(x: iw - 76, y: 14, width: 16, height: 16)
         summaryText.frame = NSRect(x: 24, y: 274, width: iw - 48, height: 84)
-        sourceBox.frame = NSRect(x: 24, y: 410, width: iw - 48, height: 44); sourceField.frame = titleField.frame
+        sourceBox.frame = NSRect(x: 24, y: 410, width: iw - 48, height: 44)
+        Theme.placeLine(sourceField, in: NSRect(x: 12, y: 0, width: iw - 72, height: 44), stableBaseline: true)
         segments.frame = NSRect(x: 24, y: 24, width: 296, height: 44); contentRule.frame = NSRect(x: 24, y: 84, width: cw - 48, height: 1)
         promptLabel.frame = NSRect(x: 24, y: 104, width: cw - 48, height: 24)
         promptText.frame = NSRect(x: 12, y: 136, width: cw - 24, height: max(120, h - 160))
