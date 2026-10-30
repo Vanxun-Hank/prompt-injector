@@ -36,6 +36,18 @@ extension AppDelegate {
             return sqlite3_exec(db, command, nil, nil, nil) == SQLITE_OK
         }
         await until { manager.selectedEntry != nil }
+        check("management/regular-application", NSApp.activationPolicy() == .regular)
+        // NSApplication resamples icon representations; compare pixels with 8/255 average-channel tolerance.
+        func iconPixels(_ image: NSImage?) -> NSBitmapImageRep? {
+            guard let image, let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 64, pixelsHigh: 64, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 256, bitsPerPixel: 32), let context = NSGraphicsContext(bitmapImageRep: bitmap) else { return nil }
+            NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = context
+            image.draw(in: NSRect(x: 0, y: 0, width: 64, height: 64))
+            NSGraphicsContext.restoreGraphicsState(); return bitmap
+        }
+        if let actual = iconPixels(NSApp.applicationIconImage), let expected = iconPixels(DesignAssets.image("AppIcon", template: false)), let a = actual.bitmapData, let b = expected.bitmapData {
+            let difference = (0..<(64 * 64 * 4)).reduce(0) { $0 + abs(Int(a[$1]) - Int(b[$1])) }
+            checks.append(["name": "application/branded-icon", "passed": difference <= 8 * 64 * 64 * 4, "pixelDifference": difference])
+        } else { check("application/branded-icon", false) }
         check("management/native-window-controls", [.closeButton, .miniaturizeButton, .zoomButton].allSatisfy { window.standardWindowButton($0)?.isEnabled == true })
         check("management/initial-real-library", manager.root.libraryView.items.count == 7)
         check("assets/all-figma-assets-load", ["Logo", "Grid", "Chart", "Search", "Plus", "Down", "Copy", "Edit", "Check", "Back", "Close", "Insert", "Chevron", "Status", "Dot-requirements", "Dot-coding", "Dot-debugging", "Dot-review", "Dot-release", "MenuBar", "AppIcon"].allSatisfy { DesignAssets.image($0, template: false)?.size.width ?? 0 > 0 })
@@ -115,6 +127,18 @@ extension AppDelegate {
         window.performZoom(nil)
         check("management/native-zoom", window.frame.size != beforeZoom.size)
         window.setFrame(beforeZoom, display: true)
+        var enteredFullScreen = false, exitedFullScreen = false
+        let entered = NotificationCenter.default.addObserver(forName: NSWindow.didEnterFullScreenNotification, object: window, queue: .main) { _ in enteredFullScreen = true }
+        let exited = NotificationCenter.default.addObserver(forName: NSWindow.didExitFullScreenNotification, object: window, queue: .main) { _ in exitedFullScreen = true }
+        window.toggleFullScreen(nil)
+        await until { enteredFullScreen }
+        check("management/native-fullscreen-space", enteredFullScreen && window.styleMask.contains(.fullScreen))
+        if enteredFullScreen {
+            window.toggleFullScreen(nil)
+            await until { exitedFullScreen }
+        }
+        check("management/native-fullscreen-exit", exitedFullScreen && !window.styleMask.contains(.fullScreen))
+        NotificationCenter.default.removeObserver(entered); NotificationCenter.default.removeObserver(exited)
         manager.root.editor = nil
         window.performClose(nil)
         await until { !window.isVisible }

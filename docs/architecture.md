@@ -57,7 +57,7 @@ macOS/
 
 UI 通过请求代次丢弃迟到结果，加载期间禁止插入旧详情，返回保留选择/滚动。失败显示简短反馈，下次唤起重试失败的读取。窗口动画和系统插入流程保留，视觉按最新 Figma 更新。SQLite 操作使用参数绑定、外键、版本门禁和超时，日志仅记录层级、行数、错误代码和耗时。首次种子数据保留稳定 ID 与原文字段。
 
-`ManagementWindowController` 复用同一 `PromptLibrary`，提供列表、预览、标题／简述查询及 `PromptEditorView`；长文本使用可撤销的原生 `NSTextView`。管理窗口为 titled/fullSizeContentView 原生窗口，保留红黄绿系统按钮；关闭通过 delegate 保存草稿后隐藏。创建／编辑在事务中验证必填和分类；重试使用原 UUID，编辑对比原快照拒绝过期覆盖。成功提交后发送通知，管理页与浮窗重新查询，按 ID 保留有效选择。
+`ManagementWindowController` 复用同一 `PromptLibrary`，提供列表、预览、标题／简述查询及 `PromptEditorView`；长文本使用可撤销的原生 `NSTextView`。管理窗口为 titled/fullSizeContentView 原生窗口，保留红黄绿系统按钮，并通过 fullScreenPrimary 进入独立 Space。打开管理窗口时切换 regular 应用身份，显式设置自家 AppIcon；Dock 重开返回管理窗口。关闭通过 delegate 保存草稿后隐藏。创建／编辑在事务中验证必填和分类；重试使用原 UUID，编辑对比原快照拒绝过期覆盖。成功提交后发送通知，管理页与浮窗重新查询，按 ID 保留有效选择。
 
 伴随 `library-activity.sqlite3` 通过同一串行连接按需 ATTACH，保存编辑草稿和成功使用事件；主内容 schema 仍为 v1。自动草稿、切页、关闭及退出均保留未完成输入，失败不关闭表单。退出先取消当前终止请求，完成草稿和队列排空后再次终止，避免 terminateLater 的 MainActor 回调死锁。`UsageDashboard` 只聚合实际成功复制及完整回读确认插入的事件，内部粘贴不重复计次。
 

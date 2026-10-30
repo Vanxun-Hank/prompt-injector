@@ -52,3 +52,5 @@ python3 scripts/test-suite.py
 公开仓库不附原始运行报告、会话日志和私人数据库。历史验收摘要见 [stage1-acceptance.md](stage1-acceptance.md)；执行套件会在本机重新生成证据。发布与回滚约定见 [development.md](development.md)。
 
 2026-10-30 新版 UI 最终回归：48 Swift + 7 Python + 103 原生检查、19 张有效截图通过；原生红黄绿按钮实际最小化／还原、放大与关闭通过。构建 20261030T152933Z，报告见本地 artifacts/tests/20261030T152927.116265Z/summary.json。本轮未重复真实 Codex 跨应用插入。
+
+2026-10-30 试用反馈修正：完整套件 48 Swift + 7 Python + 107 原生检查、19 张截图通过，构建 20261030T154236Z。新增进入／退出原生全屏通知与样式、regular 身份和实际 Logo 渲染校验；真实绿色按钮也已手动点击验证进入全屏。报告 artifacts/tests/20261030T154230.766752Z/summary.json。

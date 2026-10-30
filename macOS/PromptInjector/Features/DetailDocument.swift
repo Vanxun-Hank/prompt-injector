@@ -7,7 +7,6 @@ final class DetailDocument: NSView {
     let box = NSView()
     let promptTextView = NSTextView()
     let segments = ChoiceSegments(["Prompt", "经验与来源"])
-    let sourceLabel = Theme.label(size: 11, color: Theme.tertiary)
     let bodyScroll = NSScrollView()
     private let sectionHost = FlippedView()
     private var entry: PromptEntry?
@@ -31,7 +30,7 @@ final class DetailDocument: NSView {
         addSubview(box)
         bodyScroll.drawsBackground = false; bodyScroll.hasVerticalScroller = true; bodyScroll.scrollerStyle = .overlay
         bodyScroll.automaticallyAdjustsContentInsets = false; bodyScroll.documentView = sectionHost
-        box.addSubview(bodyScroll); addSubview(sourceLabel); addSubview(segments)
+        box.addSubview(bodyScroll); addSubview(segments)
         segments.onSelect = { [weak self] _ in
             guard let self, let entry = self.entry else { return }
             self.setEntry(entry)
@@ -66,7 +65,7 @@ final class DetailDocument: NSView {
         if self.entry?.id != entry.id { segments.selectedIndex = 0 }
         self.entry = entry
         heading.textStorage?.setAttributedString(Theme.body(entry.title, size: 18, lineHeight: 26, weight: .medium))
-        heading.toolTip = entry.title; sourceLabel.stringValue = entry.source
+        heading.toolTip = entry.title
         for (index, text) in [entry.originalExperience, entry.source, entry.explanation, entry.prompt].enumerated() {
             sections[index].1.textStorage?.setAttributedString(body(text, size: 13, fencedCode: index == 3))
             let hidden = text.isEmpty || (segments.selectedIndex == 0 ? index != 3 : index == 3)
@@ -104,9 +103,7 @@ final class DetailDocument: NSView {
         let compact = width < 400, gap: CGFloat = compact ? 8 : 12
         let titleHeight = min(52, max(26, position(heading, x: 0, y: 0, width: width)))
         heading.frame.size.height = titleHeight
-        sourceLabel.isHidden = compact
-        sourceLabel.frame = NSRect(x: 0, y: titleHeight + gap, width: width, height: 18)
-        let tabsY = compact ? titleHeight + gap : sourceLabel.frame.maxY + gap
+        let tabsY = titleHeight + gap
         segments.frame = NSRect(x: 0, y: tabsY, width: min(280, width), height: 34)
         let boxY = segments.frame.maxY + gap
         box.frame = NSRect(x: 0, y: boxY, width: width, height: max(40, height - boxY))

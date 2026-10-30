@@ -3,6 +3,7 @@ import Darwin
 
 enum DiagnosticEvent: String, Codable, Sendable {
     case appStopping = "app.stopping"
+    case managementWindowState = "management.window_state"
     case appStarted = "app.started", appStopped = "app.stopped", libraryFailed = "library.load_failed"
     case permissionChanged = "permission.changed", permissionRequested = "permission.requested"
     case shortcutRegistered = "shortcut.registered", shortcutFailed = "shortcut.failed", preferenceInvalid = "preference.invalid"

@@ -31,6 +31,7 @@ import Carbon
             Task { @MainActor in NSApp.terminate(nil) }
             return
         }
+        if let icon = DesignAssets.image("AppIcon", template: false) { NSApp.applicationIconImage = icon }
         let storedShortcut = UserDefaults.standard.integer(forKey: "launcher.shortcut.v1")
         if storedShortcut != selectedShortcut {
             DiagnosticLog.shared.write(.preferenceInvalid, level: .warning, fields: .init(shortcutIndex: storedShortcut, preference: "shortcut"))
@@ -147,6 +148,8 @@ import Carbon
         let editItem = NSMenuItem(); editItem.submenu = edit; main.addItem(editItem)
         let windows = NSMenu(title: "窗口")
         windows.addItem(withTitle: "关闭窗口", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        let fullScreen = windows.addItem(withTitle: "进入／退出全屏幕", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
+        fullScreen.keyEquivalentModifierMask = [.control, .command]
         let windowItem = NSMenuItem(); windowItem.submenu = windows; main.addItem(windowItem)
         NSApp.mainMenu = main
     }
@@ -187,7 +190,8 @@ import Carbon
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag { controller?.show(capturing: externalTarget()) }
+        if management != nil { openManagement() }
+        else if !flag { controller?.show(capturing: externalTarget()) }
         return true
     }
     func applicationWillTerminate(_ notification: Notification) {

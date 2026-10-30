@@ -67,35 +67,32 @@ final class SearchBox: SurfaceView {
     let sidebar = SurfaceView(color: Theme.shell, radius: 0, border: nil)
     let logo = LogoView(frame: .zero)
     let brand = Theme.label("Prompt Injector", size: 15, weight: .semibold)
-    let brandCaption = Theme.label("内容管理", size: 11, color: Theme.tertiary)
     let all = SidebarItem("全部内容", asset: "Grid"), stats = SidebarItem("使用统计", asset: "Chart")
     let categoryLabel = Theme.label("分类", size: 11, color: Theme.tertiary)
     let categoryItems = PromptCategory.all.map { SidebarItem($0.name, category: $0.id) }
     private let sidebarRule = SurfaceView(color: Theme.hex(0x353535), radius: 0, border: nil)
     private let lowerRule = SurfaceView(color: Theme.border, radius: 0, border: nil)
-    private let localLabel = Theme.label("本地资料库", size: 12, color: Theme.secondary)
-    private let shortcut = Theme.label("唤起浮窗    ⇧⌥Space", size: 11, color: Theme.tertiary)
+    private let shortcut = Theme.label("⇧⌥Space", size: 11, color: Theme.tertiary)
     let title = Theme.label("内容库", size: 26, weight: .medium)
     let subtitle = Theme.label(size: 12, color: Theme.secondary)
     let band = SurfaceView(color: Theme.band, radius: 16, border: nil)
     let search = SearchBox()
-    let filterLabel = Theme.label("全部内容", size: 12, color: Theme.secondary)
     let newButton = ActionButton(title: "新建条目", symbol: "plus", primary: true, target: nil, action: nil)
     let statusLabel = Theme.label("尚未保存", size: 13)
     private let statusDot = NSImageView()
-    let requiredLabel = Theme.label("标题和 Prompt 为必填项", size: 12, color: Theme.secondary)
+    let requiredLabel = Theme.label(size: 12, color: Theme.secondary)
     let cancelButton = ActionButton(title: "取消", symbol: nil, target: nil, action: nil)
     let saveButton = ActionButton(title: "保存条目", symbol: "checkmark", primary: true, target: nil, action: nil)
     let libraryView = ManagementLibraryView()
     var editor: PromptEditorView? { didSet { oldValue?.removeFromSuperview(); if let editor { addSubview(editor) }; needsLayout = true } }
     var dashboard: UsageDashboard? { didSet { oldValue?.removeFromSuperview(); if let dashboard { addSubview(dashboard) }; needsLayout = true } }
-    let footer = Theme.label("示例内容来源：项目内置示例", size: 11, color: Theme.tertiary)
+    let footer = Theme.label(size: 11, color: Theme.tertiary)
     override init(frame: NSRect) {
         super.init(frame: frame); wantsLayer = true; layer?.backgroundColor = Theme.canvas.cgColor; layer?.cornerRadius = 20; layer?.masksToBounds = true
         [sidebar, title, subtitle, band, libraryView, footer].forEach(addSubview)
-        [logo, brand, brandCaption, all, stats, sidebarRule, categoryLabel, lowerRule, localLabel, shortcut].forEach(sidebar.addSubview)
+        [logo, brand, all, stats, sidebarRule, categoryLabel, lowerRule, shortcut].forEach(sidebar.addSubview)
         categoryItems.forEach(sidebar.addSubview)
-        [search, filterLabel, newButton, statusDot, statusLabel, requiredLabel, cancelButton, saveButton].forEach(band.addSubview)
+        [search, newButton, statusDot, statusLabel, requiredLabel, cancelButton, saveButton].forEach(band.addSubview)
         statusDot.image = DesignAssets.image("Status"); statusDot.contentTintColor = Theme.hex(0xF5D975)
         cancelButton.outlined = true
     }
@@ -105,16 +102,15 @@ final class SearchBox: SurfaceView {
         super.layout(); let w = bounds.width, h = bounds.height, main = w - 280
         sidebar.frame = NSRect(x: 0, y: 0, width: 216, height: h)
         logo.frame = NSRect(x: 20, y: 40, width: 32, height: 32)
-        brand.frame = NSRect(x: 62, y: 32, width: 140, height: 22); brandCaption.frame = NSRect(x: 62, y: 56, width: 132, height: 18)
+        brand.frame = NSRect(x: 62, y: 45, width: 140, height: 22)
         all.frame = NSRect(x: 20, y: 90, width: 176, height: 40); stats.frame = NSRect(x: 20, y: 140, width: 176, height: 40)
         sidebarRule.frame = NSRect(x: 20, y: 190, width: 176, height: 1); categoryLabel.frame = NSRect(x: 20, y: 201, width: 176, height: 18)
         for (i, item) in categoryItems.enumerated() { item.frame = NSRect(x: 20, y: 229 + CGFloat(i) * 54, width: 176, height: 44) }
-        lowerRule.frame = NSRect(x: 20, y: h - 83, width: 176, height: 1)
-        localLabel.frame = NSRect(x: 20, y: h - 73, width: 176, height: 20); shortcut.frame = NSRect(x: 20, y: h - 43, width: 176, height: 18)
+        lowerRule.frame = NSRect(x: 20, y: h - 60, width: 176, height: 1)
+        shortcut.frame = NSRect(x: 20, y: h - 43, width: 176, height: 18)
         title.frame = NSRect(x: 248, y: 32, width: main, height: 36); subtitle.frame = NSRect(x: 248, y: 70, width: main, height: 18)
         band.frame = NSRect(x: 248, y: 108, width: main, height: 64)
         search.frame = NSRect(x: 16, y: 12, width: min(360, main - 280), height: 40)
-        filterLabel.frame = NSRect(x: search.frame.maxX + 16, y: 22, width: 130, height: 20)
         newButton.frame = NSRect(x: main - 136, y: 12, width: 120, height: 40)
         statusDot.frame = NSRect(x: 16, y: 28.5, width: 7, height: 7)
         statusDot.contentTintColor = statusLabel.stringValue.contains("失败") ? Theme.error : Theme.hex(0xF5D975)
@@ -127,7 +123,7 @@ final class SearchBox: SurfaceView {
         footer.frame = NSRect(x: 248, y: h - 52, width: main, height: 20)
         let editing = page == .editor, statistics = page == .statistics
         [title, subtitle, band, footer].forEach { $0.isHidden = statistics }
-        [search, filterLabel, newButton].forEach { $0.isHidden = editing }
+        [search, newButton].forEach { $0.isHidden = editing }
         [statusDot, statusLabel, requiredLabel, cancelButton, saveButton].forEach { $0.isHidden = !editing }
         libraryView.isHidden = page != .library; editor?.isHidden = !editing; dashboard?.isHidden = !statistics
     }
@@ -142,7 +138,6 @@ final class ManagementSummaryCell: NSTableCellView {
         heading.stringValue = value.summary.title; summary.stringValue = value.summary.summary
         let name = Theme.categoryName(value.summary.categoryID)
         let text = NSMutableAttributedString(string: name, attributes: [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: Theme.categoryColor(value.summary.categoryID)])
-        text.append(NSAttributedString(string: "  ·  " + value.source, attributes: [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: Theme.tertiary]))
         metadata.attributedStringValue = text
         toolTip = value.summary.title + "\n" + value.summary.summary
     }
@@ -156,8 +151,7 @@ final class ManagementSummaryCell: NSTableCellView {
     let listPanel = SurfaceView(), preview = SurfaceView()
     let listLabel = Theme.label("全部条目", size: 12, color: Theme.secondary)
     let table = NSTableView(), listScroll = NSScrollView()
-    let categoryLabel = Theme.label(size: 12), source = Theme.label(size: 11, color: Theme.tertiary)
-    private var dot: CategoryDot?
+    let categoryLabel = Theme.label(size: 14, weight: .medium)
     let heading = Theme.label(size: 24, weight: .medium), summary = Theme.label(size: 13, color: Theme.secondary)
     private let rule = SurfaceView(color: Theme.border, radius: 0, border: nil)
     let document = TextDocument(), scroll = NSScrollView()
@@ -171,7 +165,7 @@ final class ManagementSummaryCell: NSTableCellView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         addSubview(listPanel); addSubview(preview); listPanel.addSubview(listLabel); listPanel.addSubview(listScroll)
-        [categoryLabel, source, heading, summary, rule, scroll, sources, copyButton, editButton].forEach(preview.addSubview)
+        [categoryLabel, heading, summary, rule, scroll, sources, copyButton, editButton].forEach(preview.addSubview)
         table.addTableColumn(NSTableColumn(identifier: .init("entry"))); table.headerView = nil; table.style = .plain
         table.backgroundColor = .clear; table.rowHeight = 84; table.intercellSpacing = NSSize(width: 0, height: 4)
         table.focusRingType = .none; table.dataSource = self; table.delegate = self; table.allowsEmptySelection = true
@@ -185,7 +179,6 @@ final class ManagementSummaryCell: NSTableCellView {
             guard let self else { return }; self.showingSources.toggle(); self.updateDocument()
             if self.showingSources { self.document.text.scrollToEndOfDocument(nil) }
         }
-        source.alignment = .right
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     func setItems(_ items: [ManagedSummary], selecting id: String?) {
@@ -204,10 +197,9 @@ final class ManagementSummaryCell: NSTableCellView {
     func setEntry(_ value: PromptEntry?) {
         if entry?.id != value?.id { showingSources = false }
         entry = value; copyButton.isEnabled = value != nil; editButton.isEnabled = value != nil; sources.isEnabled = value != nil
-        heading.stringValue = value?.title ?? "没有匹配内容"; summary.stringValue = value?.summary ?? "尝试其他关键词，或新建一条经验。"
-        source.stringValue = value?.source ?? ""; categoryLabel.stringValue = value.map { Theme.categoryName($0.categoryID) } ?? ""
+        heading.stringValue = value?.title ?? "没有匹配内容"; summary.stringValue = value?.summary ?? ""
+        categoryLabel.stringValue = value.map { Theme.categoryName($0.categoryID) } ?? ""
         categoryLabel.textColor = value.map { Theme.categoryColor($0.categoryID) } ?? Theme.text
-        dot?.removeFromSuperview(); dot = value.map { CategoryDot(category: $0.categoryID) }; if let dot { preview.addSubview(dot) }
         updateDocument(); needsLayout = true
     }
     private func updateDocument() {
@@ -228,8 +220,7 @@ final class ManagementSummaryCell: NSTableCellView {
         listScroll.frame = NSRect(x: 16, y: 48, width: listWidth - 32, height: bounds.height - 64)
         table.tableColumns.first?.width = listScroll.contentSize.width
         let w = preview.bounds.width, h = preview.bounds.height
-        dot?.frame = NSRect(x: 24, y: 32.5, width: 7, height: 7)
-        categoryLabel.frame = NSRect(x: 39, y: 24, width: 180, height: 24); source.frame = NSRect(x: w - 225, y: 24, width: 200, height: 20)
+        categoryLabel.frame = NSRect(x: 24, y: 24, width: w - 48, height: 24)
         heading.frame = NSRect(x: 24, y: 64, width: w - 48, height: 34); summary.frame = NSRect(x: 24, y: 112, width: w - 48, height: 22)
         rule.frame = NSRect(x: 24, y: 150, width: w - 48, height: 1)
         scroll.frame = NSRect(x: 24, y: 166, width: w - 48, height: h - 242)
@@ -256,6 +247,7 @@ final class ManagementSummaryCell: NSTableCellView {
         let window = ManagementWindow(contentRect: NSRect(x: 0, y: 0, width: 1440, height: 960), styleMask: [.titled, .fullSizeContentView, .resizable, .closable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "Prompt Injector · 内容管理"; window.identifier = .init("PromptInjector.Management")
         window.titlebarAppearsTransparent = true; window.titleVisibility = .hidden
+        window.collectionBehavior.insert(.fullScreenPrimary)
         window.minSize = NSSize(width: 1100, height: 720); window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: .darkAqua); window.backgroundColor = .clear; window.isOpaque = false
         window.isMovableByWindowBackground = true; window.hasShadow = true; window.contentView = root
@@ -281,7 +273,21 @@ final class ManagementSummaryCell: NSTableCellView {
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     deinit { NotificationCenter.default.removeObserver(self); draftWork?.cancel() }
-    func show() { showWindow(nil); window?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
+    func show() {
+        NSApp.setActivationPolicy(.regular)
+        if let icon = DesignAssets.image("AppIcon", template: false) { NSApp.applicationIconImage = icon }
+        showWindow(nil); window?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+    }
+    func windowDidEnterFullScreen(_ notification: Notification) {
+        DiagnosticLog.shared.write(.managementWindowState, fields: .init(stage: "fullscreen-entered"))
+    }
+    func windowDidExitFullScreen(_ notification: Notification) {
+        DiagnosticLog.shared.write(.managementWindowState, fields: .init(stage: "fullscreen-exited"))
+    }
+    func windowDidFailToEnterFullScreen(_ window: NSWindow) {
+        DiagnosticLog.shared.write(.managementWindowState, level: .error, fields: .init(stage: "fullscreen-enter-failed"))
+        root.footer.stringValue = "无法进入全屏，请重试。"
+    }
     private func chooseCategory(_ category: String) {
         navigationGeneration += 1
         if root.page == .statistics { selectedCategory = category; updateSidebar(); root.dashboard?.category = category }
@@ -295,8 +301,8 @@ final class ManagementSummaryCell: NSTableCellView {
         }
         selectedCategory = category; root.page = .library
         navigationGeneration += 1
-        root.title.stringValue = "内容库"; root.filterLabel.stringValue = category.map(Theme.categoryName) ?? "全部内容"
-        root.footer.stringValue = "所有内容保存在本机，可在浮窗中调用。"
+        root.title.stringValue = "内容库"
+        root.footer.stringValue = ""
         updateSidebar(); refreshLibrary()
     }
     private func updateSidebar() {
@@ -395,9 +401,9 @@ final class ManagementSummaryCell: NSTableCellView {
         draftWork?.cancel(); root.editor = PromptEditorView(draft: draft)
         root.editor?.onChange = { [weak self] in self?.scheduleDraft() }
         root.page = .editor; root.title.stringValue = draft.original == nil ? "新增经验" : "编辑条目"
-        root.subtitle.stringValue = "内容库 / 手动录入"; root.statusLabel.stringValue = "尚未保存"
-        root.requiredLabel.stringValue = "标题和 Prompt 为必填项"; root.requiredLabel.textColor = Theme.secondary
-        root.footer.stringValue = "保存后，可在浮窗中找到并调用这条 Prompt。"
+        root.subtitle.stringValue = ""; root.statusLabel.stringValue = "尚未保存"
+        root.requiredLabel.stringValue = ""; root.requiredLabel.textColor = Theme.secondary
+        root.footer.stringValue = ""
         root.saveButton.isEnabled = true; updateSidebar(); root.needsLayout = true
     }
     private func scheduleDraft() {
@@ -410,7 +416,7 @@ final class ManagementSummaryCell: NSTableCellView {
         guard let editor = root.editor, editor.hasChanges else { completion?(true); return }
         library.storeDraft(editor.value, original: editor.original) { [weak self] result in
             switch result {
-            case .success: if updateStatus { self?.root.statusLabel.stringValue = "本地草稿已保存" }; completion?(true)
+            case .success: if updateStatus { self?.root.statusLabel.stringValue = "草稿已保存" }; completion?(true)
             case .failure(let error): self?.root.statusLabel.stringValue = "草稿保存失败"; self?.root.requiredLabel.stringValue = error.localizedDescription; completion?(false)
             }
         }
@@ -429,7 +435,7 @@ final class ManagementSummaryCell: NSTableCellView {
             switch result {
             case .success:
                 editor.markSaved(value); self.selectedEntry = value; self.root.editor = nil
-                self.showLibrary(category: nil); self.root.footer.stringValue = "已保存，浮窗内容已刷新。"
+                self.showLibrary(category: nil); self.root.footer.stringValue = "已保存"
             case .failure(let error):
                 self.root.statusLabel.stringValue = "保存失败"; self.root.requiredLabel.stringValue = error.localizedDescription
                 self.root.requiredLabel.textColor = Theme.error; self.persistDraft(updateStatus: false)

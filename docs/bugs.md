@@ -15,6 +15,7 @@
 | PI-009 | 新增异步退出排空后，MainActor Task 调用 terminate 进入 terminateLater 嵌套事件循环，主队列完成回调无法执行，进程卡住 | 先返回 terminateCancel，异步完成草稿与队列排空后再次退出；失败保留应用与表单 | `ManagementTests.testMainActorTerminationExitsAfterPendingUsageIsCommitted`：旧实现实测 3 秒超时失败，修复后进程正常退出且使用记录落盘；不依赖桌面截图 |
 | PI-010 | 小窗超长标题只缩小 NSTextView 的 frame，文字布局仍有 234 pt 高，会绘制到下方页签 | 标题布局限为两行并截尾，保留完整 tooltip／原始字段；正文仍独立滚动 | `NavigationTests.testLongTitleDoesNotPaintBehindDetailControls` 修复前 234 > 52 失败，修复后通过；原生长内容截图复核 |
 | PI-011 | 插入失败后 defer 无条件重新启用按钮，错误态仍能通过按钮／⌘Return 发起操作 | 已确认权限／目标／未确认写入失败保持禁用，复制不受影响；新目标捕获成功才恢复，剪贴板与快捷键暂态错误仍可重试 | `NavigationTests.testPermissionFailureDisablesInsertionAndPreservesCopy` 修复前失败；原生 `keyboard/blocked-command-return-no-route` 与恢复检查 |
+| PI-012 | 管理窗口只具备普通缩放行为，应用仍为 accessory 辅助程序，缺少主全屏窗口配置 | 管理窗口增加 fullScreenPrimary，打开后切换 regular 并显式应用品牌图标；Dock 重开管理窗口，提供 ⌃⌘F | 原生 management/native-fullscreen-space 与 native-fullscreen-exit；真实绿色按钮 AX 从 zoom 变为 full screen，点击后记录 fullscreen-entered；application/branded-icon 对实际渲染像素校验 |
 
 ## 系统排查中应保留的判断
 

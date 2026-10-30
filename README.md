@@ -38,7 +38,7 @@ bash scripts/build-app.sh
 open 'build/Prompt Injector.app'
 ```
 
-应用运行在菜单栏，没有 Dock 图标。当前提供源码构建，尚无公证过的安装包或自动更新。
+应用常驻菜单栏；打开管理窗口后以普通 macOS 应用显示品牌 Dock 图标，绿色按钮或 `⌃⌘F` 可进入独立桌面空间的原生全屏。当前提供源码构建，尚无公证过的安装包或自动更新。
 
 实际 `.app` 位于 `~/Library/Application Support/Prompt Injector/Build/`；项目的 `build/Prompt Injector.app` 是指向它的链接。这样避免文件同步服务给应用追加属性后破坏签名。可用 `PROMPT_INJECTOR_APP_OUTPUT` 指定其他输出路径。
 
@@ -104,7 +104,7 @@ python3 scripts/test-suite.py
 python3 scripts/test-suite.py --headless
 ```
 
-完整套件需要解锁桌面及截图权限。结果写入本地 `artifacts/tests/`；`--headless` 不替代真实窗口与跨应用验收。v0.1 验收基线为 **36 Swift + 6 Python + 69 原生检查**；断网插入、未授权拒绝/复制、原目标失效另外经过真实用户操作验证。v0.2.0 新版完整套件为 **48 Swift + 7 Python + 103 原生检查、19 张截图**，包含原生窗口按钮的实际操作；本轮未重复真实 Codex 跨应用插入。详见 [测试案例](docs/testing.md)、[移植记录](docs/figma-integration.md) 和 [Stage 1 验收摘要](docs/stage1-acceptance.md)。
+完整套件需要解锁桌面及截图权限。结果写入本地 `artifacts/tests/`；`--headless` 不替代真实窗口与跨应用验收。v0.1 验收基线为 **36 Swift + 6 Python + 69 原生检查**；断网插入、未授权拒绝/复制、原目标失效另外经过真实用户操作验证。v0.2.0 新版完整套件为 **48 Swift + 7 Python + 107 原生检查、19 张截图**，包含原生窗口按钮的实际操作；本轮未重复真实 Codex 跨应用插入。详见 [测试案例](docs/testing.md)、[移植记录](docs/figma-integration.md) 和 [Stage 1 验收摘要](docs/stage1-acceptance.md)。
 
 ## 路线图与维护
 

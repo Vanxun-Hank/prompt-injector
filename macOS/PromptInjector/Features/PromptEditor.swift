@@ -47,8 +47,6 @@ final class EditorText: SurfaceView {
     private let promptLabel = Theme.label("Prompt *", size: 14, weight: .medium)
     private let originalLabel = Theme.label("原始经验", size: 14, weight: .medium)
     private let explanationLabel = Theme.label("解释", size: 14, weight: .medium)
-    private let hint = Theme.label("可填写作者、链接或出处。", size: 11, color: Theme.tertiary)
-    private let formatHint = Theme.label("保存时保留全部换行和代码格式。", size: 11, color: Theme.tertiary)
     private let explanationRule = SurfaceView(color: Theme.border, radius: 0, border: nil)
     init(draft: EditorDraft) {
         id = draft.entry.id; category = draft.entry.categoryID; original = draft.original
@@ -59,7 +57,7 @@ final class EditorText: SurfaceView {
         super.init(frame: .zero)
         addSubview(info); addSubview(content); info.addSubview(infoScroll)
         infoScroll.drawsBackground = false; infoScroll.hasVerticalScroller = true; infoScroll.scrollerStyle = .overlay; infoScroll.documentView = infoBody
-        [infoHeading, titleBox, categoryBox, summaryText, sourceBox, hint].forEach(infoBody.addSubview)
+        [infoHeading, titleBox, categoryBox, summaryText, sourceBox].forEach(infoBody.addSubview)
         labels.forEach(infoBody.addSubview)
         for (field, box, label, value) in [(titleField, titleBox, "标题", draft.entry.title), (sourceField, sourceBox, "来源", draft.entry.source)] {
             field.font = .systemFont(ofSize: 14); field.textColor = Theme.text; field.drawsBackground = false
@@ -69,7 +67,7 @@ final class EditorText: SurfaceView {
         categoryBox.addSubview(categoryButton); categoryButton.alignment = .left
         categoryArrow.image = DesignAssets.image("Down"); categoryBox.addSubview(categoryArrow)
         categoryButton.font = .systemFont(ofSize: 14); categoryButton.onPress = { [weak self] in self?.chooseCategory() }
-        [segments, contentRule, promptLabel, promptText, originalLabel, originalText, explanationLabel, explanationText, explanationRule, formatHint].forEach(content.addSubview)
+        [segments, contentRule, promptLabel, promptText, originalLabel, originalText, explanationLabel, explanationText, explanationRule].forEach(content.addSubview)
         for edit in [summaryText, promptText, originalText, explanationText] { edit.text.delegate = self }
         // The long content editors use the surrounding panel as their surface.
         for edit in [promptText, originalText, explanationText] { edit.layer?.borderWidth = 0; edit.layer?.backgroundColor = NSColor.clear.cgColor }
@@ -116,17 +114,15 @@ final class EditorText: SurfaceView {
         categoryArrow.frame = NSRect(x: iw - 76, y: 14, width: 16, height: 16)
         summaryText.frame = NSRect(x: 24, y: 274, width: iw - 48, height: 84)
         sourceBox.frame = NSRect(x: 24, y: 410, width: iw - 48, height: 44); sourceField.frame = titleField.frame
-        hint.frame = NSRect(x: 24, y: 466, width: iw - 48, height: 18)
         segments.frame = NSRect(x: 24, y: 24, width: 296, height: 44); contentRule.frame = NSRect(x: 24, y: 84, width: cw - 48, height: 1)
         promptLabel.frame = NSRect(x: 24, y: 104, width: cw - 48, height: 24)
-        promptText.frame = NSRect(x: 12, y: 136, width: cw - 24, height: max(120, h - 196))
+        promptText.frame = NSRect(x: 12, y: 136, width: cw - 24, height: max(120, h - 160))
         originalLabel.frame = promptLabel.frame
         let oh = max(120, min(180, (h - 228) * 0.4))
         originalText.frame = NSRect(x: 12, y: 136, width: cw - 24, height: oh)
         explanationRule.frame = NSRect(x: 24, y: originalText.frame.maxY + 12, width: cw - 48, height: 1)
         explanationLabel.frame = NSRect(x: 24, y: explanationRule.frame.maxY + 16, width: cw - 48, height: 24)
-        explanationText.frame = NSRect(x: 12, y: explanationLabel.frame.maxY + 8, width: cw - 24, height: max(80, h - explanationLabel.frame.maxY - 68))
-        formatHint.frame = NSRect(x: 24, y: h - 42, width: cw - 48, height: 18)
+        explanationText.frame = NSRect(x: 12, y: explanationLabel.frame.maxY + 8, width: cw - 24, height: max(80, h - explanationLabel.frame.maxY - 32))
         let prompt = segments.selectedIndex == 0
         [promptLabel, promptText].forEach { $0.isHidden = !prompt }
         [originalLabel, originalText, explanationRule, explanationLabel, explanationText].forEach { $0.isHidden = prompt }

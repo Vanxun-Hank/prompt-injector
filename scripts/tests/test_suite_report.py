@@ -17,6 +17,8 @@ class SuiteReportTests(unittest.TestCase):
                   'statistics/explicit-success-events-only','assets/all-figma-assets-load']
         names += ['statistics/all-columns-fit','management/native-window-controls',
                   'management/native-close-hides','management/native-minimize','management/native-zoom',
+                  'management/native-fullscreen-space','management/native-fullscreen-exit',
+                  'management/regular-application','application/branded-icon',
                   'keyboard/blocked-command-return-no-route','keyboard/recovered-command-return-routes']
         names += ['capture/management-'+n for n in ['library','editor','original','save-error','statistics','minimum']]
         names += [f'check/{i}' for i in range(90-len(names))]
