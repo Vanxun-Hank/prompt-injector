@@ -12,11 +12,14 @@
 | PI-006 | 系统开关已开，但重建后的临时签名程序仍无权限 | 使用有效开发证书保持身份；用户重新添加当前 `.app` 授权 | 实际进程 trusted 与签名检查；TCC 行为不能纯单测证明 |
 | PI-007 | Codex 标准粘贴路径仍要求 AX setter 可写 | 按实际插入方法判断，Codex 的聚焦 AXGroup 可作为候选；明确只读/禁用/安全/不可读仍拒绝 | `PasteCapabilityTests.testObservedCodexGroupCanPasteWithoutAXSetters` 修复前失败、修复后通过；另测其他应用不扩大兼容 |
 | PI-008 | 非文本控件可能因 value 可写被当作输入框；错误提示也不够明确 | 按钮、勾选框、单选框、滑块、弹出按钮和菜单项明确拒绝，提示重新从文字输入框唤起 | `testNonTextControlsRemainRejectedEvenWithWritableValue` 覆盖两种写入方式，修复前 12 个断言失败、修复后通过 |
+| PI-009 | 捕获没有外部目标/聚焦元素时未保存失败状态，插入时误报「原输入框已失效」 | 捕获开始即设为 `noTextFocus`，只有完整捕获成功才清除；保留权限/安全/非文本判断及真实目标失效校验，不重试、不猜目标 | `BugRegressionTests.testCaptureWithoutInputReportsNoTextFocusAndNeverWrites` 覆盖 nil/自身应用，修复前 4 个断言失败；成功捕获/真实插入另以用户操作与日志验收 |
+| PI-010 | 普通主框实际为空，CSS 占位装饰却被 AXValue/字符数/范围读取计作 16 个单位；预期全文错误地保留了提示，插入后误报 unconfirmed 并重开浮窗 | 真实空框采集确认 ProseMirror 根与 placeholder 标记同时存在。共用读取器仅在 Codex AXTextArea、标记齐全且零起点选区时解析为空；稳定性复读、原目标、选区和全文校验保留。修复通过自动化及当前环境真实空框插入：全文回读一致、剪贴板恢复、成功收起 | `TargetTextTests` 的 4 项测试在修复前 7 个断言失败，修复后通过；包括真实正文恰与提示相同、不同长度/语言提示、非零/未知选区、其他应用/角色、输入后标记消失等边界 |
 
 ## 系统排查中应保留的判断
 
 - 多次按插入不等于多次捕获。更换目标需先收起浮窗，在新输入框确认光标，再重新唤起；仅切换 Prompt 不改变目标。
 - 用户曾报告“两个框都失败”，但日志显示多次复用同一个 AXButton 目标；重新在普通框键入测试文字并完整唤起后，真实插入通过。不要根据口述次数猜目标数量，也不要为绕过错误把按钮放行。
+- v0.2.0 初版系统复核中，首次捕获返回 `noFocusedElement`，之后两次插入均在 target 阶段拒绝、没有写入请求。用户重新从已键入测试字符的主输入框唤起后确认完整插入且未发送，同构建记录 `insertion.verified` 和剪贴板恢复。该事实证明此次捕获条件恢复，不能据此猜测最初 AX 未返回焦点的系统根因。PI-009 只修正未捕获与目标失效的提示混淆。
 - 锁屏导致过截图和窗口动画时序检查失败；同构建解锁后通过。保留环境与失败报告，不删断言、不拿旧截图冒充新运行结果。
 - UI QA 的所有唤起路径都必须捕获 nil，不能测试时读取外部输入框。验证进程不注册全局快捷键，使用临时 SQLite。
 
@@ -25,6 +28,8 @@
 `SQLiteRepositoryTests` 覆盖首次事务导入、重启不重复、不覆盖编辑/复活删除、损坏与高版本库保留、并发初始化、Unicode/NUL 保真、参数绑定。通过 SQLite authorizer 禁止正文列读取，证明分类/列表不提前加载正文。
 
 `LibraryLoadingTests` 覆盖迟到详情不能覆盖新页面、读取失败不能插入旧 Prompt、重新读取恢复、选择记忆及完整 Prompt 原样传递。这些是预防性回归，不冒称均曾在用户环境发生。
+
+v0.2.0 新增预防性回归：`CreationTests` 的保存失败保留/重复点击防护；`SQLiteRepositoryTests.testCommitFailureRollsBackAndRetryUsesSameIDWithoutDuplicateOrOrderGap` 注入提交失败，覆盖事务回滚后同 ID 重试；`LibraryLoadingTests.testSamePageRefreshDiscardsLateDetailBeforeReplacementFinishes` 与 `testSaveInvalidatesDetailUntilReloadAndFailureCannotInsertPreviousPrompt` 覆盖保存刷新和旧详情防护。这些是新增路径的故障注入验证，没有登记成真实用户故障。没有修改或扩大 question 框兼容性。
 
 `InsertionTests` 继续覆盖 UTF-16/emoji 选区、未写入与重复内容不能通过确认、多个剪贴板条目/类型恢复，以及后来用户复制内容不被覆盖。套件查看工具防止缺失截图或单项失败被顶层 passed 掩盖。
 

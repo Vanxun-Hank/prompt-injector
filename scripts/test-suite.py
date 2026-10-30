@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage 1 regression suite. Full native UI run by default; --headless is explicitly partial."""
+"""Stage 1–2 regression suite. Full native UI run by default; --headless is explicitly partial."""
 import argparse
 import datetime
 import json
@@ -18,9 +18,12 @@ def validate_ui_report(report):
     required = {'toggle/visible-hides', 'motion/interrupted-show-remains-visible',
                 'copy/actual-pasteboard', 'minimum/plain-return-does-not-insert',
                 'page-motion/rapid-navigation-preserves-state',
-                'keyboard/command-return-routes-current-prompt', 'keyboard/detail-return-does-not-route-insertion'}
+                'keyboard/command-return-routes-current-prompt', 'keyboard/detail-return-does-not-route-insertion',
+                'management/save-succeeds-once', 'management/new-detail-exact-fields',
+                'management/reopened-database-exact-fields', 'management/copy-exact-prompt',
+                'management/return-edits-does-not-save', 'management/new-prompt-routes-exactly'}
     captures = [c for c in checks if str(c.get('name', '')).startswith('capture/')]
-    return (report.get('passed') is True and len(checks) >= 67 and len(captures) == 13
+    return (report.get('passed') is True and len(checks) >= 82 and len(captures) == 15
             and required <= names and all(c.get('passed') is True for c in checks))
 
 def main():
@@ -30,7 +33,7 @@ def main():
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
     output = ROOT / 'artifacts/tests' / stamp
     output.mkdir(parents=True)
-    result = {'startedAt':stamp, 'scope':'headless-partial' if args.headless else 'stage1-full', 'steps':[], 'passed':False}
+    result = {'startedAt':stamp, 'scope':'headless-partial' if args.headless else 'stage1-stage2-full', 'steps':[], 'passed':False}
     def save():
         (output/'summary.json').write_text(json.dumps(result, indent=2)+'\n')
     def run(name, command, timeout=180):

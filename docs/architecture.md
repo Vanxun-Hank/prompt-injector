@@ -14,6 +14,7 @@ macOS/
 │   ├── App/
 │   │   ├── AppDelegate.swift         # 菜单栏、全局快捷键、外部应用记录
 │   │   ├── LauncherWindow.swift      # 窗口、键盘路由、几何与插入协调
+│   │   ├── ManagementWindow.swift    # 独立原生新增表单、保存状态与重试
 │   │   ├── PanelPresentation.swift   # 浮窗出现/隐藏与中断控制
 │   │   └── UIVerification.swift      # 原生窗口检查与截图入口
 │   ├── Domain/Library.swift          # 模型、导航状态与异步仓储入口
@@ -50,7 +51,11 @@ macOS/
 
 `PromptLibrary` 将 repository 操作派发到专用串行后台队列，再把结果回传主线程。`SQLitePromptRepository` 首次访问时打开本地库，在 `BEGIN IMMEDIATE` 事务内检查 schema version、建表并导入原有七条示例；commit 后才可见。重启不重复导入，也不自动覆盖已有修改/删除。分类独立查询 categories；第二层的 `PromptSummary` 不含正文；第三层通过 ID 与分类 ID 精确查询完整 `PromptEntry`。没有数据库错误时静默回退 JSON 的路径。
 
-UI 通过请求代次丢弃迟到结果，加载期间禁止插入旧详情，返回保留选择/滚动。失败显示简短反馈，下次唤起重试失败的读取。原有样式、窗口动画和系统插入流程保留。SQLite 操作使用参数绑定、外键、版本门禁和超时，日志仅记录层级、行数、错误代码和耗时。首次种子数据保留稳定 ID 与原文字段；后续编辑/导入仍属 Stage 2。
+UI 通过请求代次丢弃迟到结果，加载期间禁止插入旧详情，返回保留选择/滚动。失败显示简短反馈，下次唤起重试失败的读取。原有样式、窗口动画和系统插入流程保留。SQLite 操作使用参数绑定、外键、版本门禁和超时，日志仅记录层级、行数、错误代码和耗时。首次种子数据保留稳定 ID 与原文字段。
+
+v0.2.0 的 `ManagementWindowController` 与浮窗共享一个 `PromptLibrary`，保留当前 UUID、输入与 saving/saved 状态。关闭再打开复用同一窗口，成功后必须明确继续新增。`create` 在同一后台串行队列进行，repository 再验证 UUID/分类/必填，以 `BEGIN IMMEDIATE` 事务分配排序并绑定插入全部字段；失败回滚，不更新已有行。成功在主线程发布 `PromptLibrary.didChange` 后回调表单，只有共享该实例的受影响页面重载。选择记忆增加稳定 ID；详情和旧查询沿用代次防护，重载前清空插入对象。固定分类不需要重载；返回未显示的列表时自然读取最新摘要。没有正文预加载或轮询。
+
+PI-010 由 `TargetText` 处理当前 Codex 空框的占位装饰：仅认可已验证的 ProseMirror 根/placeholder 结构、AXTextArea 角色和零起点选区，其他应用/角色/缺失标记保留原值，矛盾选区拒绝。`InjectionService.readContents` 供捕获、写入前的每次校验和结果回读共用；空框归一化前再次确认原始值和选区稳定。用户开始输入、标记消失后按真实正文读取，不能继续插入旧空框快照。`InsertionPlan.matches` 的全文比较、CR/LF 规范化和所有权检查保持原样，不接受仅 Prompt 匹配而丢失已有前缀。
 
 
 ## 插入路径与限制
@@ -73,7 +78,7 @@ UI 通过请求代次丢弃迟到结果，加载期间禁止插入旧详情，�
 
 Stage 1 已用 SQLite repository 取代示例加载器：分类查询不读条目正文，列表查询只取标题与简述，进入详情才读取完整字段。UI 不直接拼 SQL；数据工作避免阻塞主线程。种子迁移保留现有 ID，并继续明确示例属性。
 
-Stage 2 增加独立管理窗口、事务保存和 JSON 导入导出；保存成功发内容变更事件，刷新当前列表并保持选择。扩展作者/来源链接与创建/修改时间，保留原文与 Prompt 的独立字段。
+Stage 2 的 v0.2.0 已增加独立管理窗口、事务新增与保存后刷新，沿用 schema v1 的全部字段；作者暂写入来源，不增加列。编辑、搜索、JSON 导出/导入和删除按后续小版本分别实现，不预建接口。
 
 Stage 3 增加本地 Draft 和 Go + chi 整理接口。原文先持久化，手工编辑稿和生成候选分开保存，由用户选择采用候选。
 

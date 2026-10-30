@@ -22,6 +22,13 @@ struct PromptEntry: Codable, Equatable {
     let source: String
     let explanation: String
     let prompt: String
+
+    func validateCreation() throws {
+        guard UUID(uuidString: id) != nil else { throw LibraryFailure.invalidID }
+        guard PromptCategory.all.contains(where: { $0.id == categoryID }) else { throw LibraryFailure.invalidCategory }
+        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw LibraryFailure.emptyTitle }
+        guard !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw LibraryFailure.emptyPrompt }
+    }
 }
 
 struct PromptSummary: Equatable {
@@ -41,6 +48,7 @@ protocol PromptRepository: AnyObject {
     func categories() throws -> [PromptCategory]
     func summaries(in category: String) throws -> [PromptSummary]
     func entry(id: String, category: String) throws -> PromptEntry?
+    func create(_ entry: PromptEntry, operationID: UUID) throws
 }
 
 enum PromptSeed {
@@ -54,6 +62,7 @@ enum PromptSeed {
 
 /// All repository access, including opening/migration, runs on this serial background queue.
 final class PromptLibrary {
+    static let didChange = Notification.Name("PromptLibrary.didChange")
     private let repository: PromptRepository
     private let queue = DispatchQueue(label: "com.promptinjector.library", qos: .userInitiated)
     init(repository: PromptRepository) { self.repository = repository }
@@ -73,28 +82,48 @@ final class PromptLibrary {
             DispatchQueue.main.async { completion(result) }
         }
     }
+    func create(_ entry: PromptEntry, operationID: UUID = UUID(), completion: @escaping (Result<Void, Error>) -> Void) {
+        queue.async { [self] in
+            let result = Result { try repository.create(entry, operationID: operationID) }
+            DispatchQueue.main.async {
+                if case .success = result {
+                    NotificationCenter.default.post(name: Self.didChange, object: self, userInfo: ["categoryID": entry.categoryID])
+                }
+                completion(result)
+            }
+        }
+    }
 }
 
 enum LibraryFailure: Error, LocalizedError {
-    case missingEntry, incompatibleVersion, invalidSeed
+    case missingEntry, incompatibleVersion, invalidSeed, invalidID, invalidCategory, emptyTitle, emptyPrompt
     var errorDescription: String? {
         switch self {
         case .missingEntry: return "条目不存在，请返回列表。"
         case .incompatibleVersion: return "资料库版本较新，请更新应用。"
         case .invalidSeed: return "无法初始化资料库，请检查安装文件。"
+        case .invalidID: return "条目标识无效，请重新新增。"
+        case .invalidCategory: return "请选择已有分类。"
+        case .emptyTitle: return "请填写标题。"
+        case .emptyPrompt: return "请填写 Prompt。"
         }
     }
 }
 
 /// Only used for isolated fixtures; the running app always uses SQLite.
 final class MemoryPromptRepository: PromptRepository {
-    let entries: [PromptEntry]
+    private(set) var entries: [PromptEntry]
     init(entries: [PromptEntry]) { self.entries = entries }
     func categories() throws -> [PromptCategory] { PromptCategory.all }
     func summaries(in category: String) throws -> [PromptSummary] {
         entries.filter { $0.categoryID == category }.map { .init(id: $0.id, categoryID: $0.categoryID, title: $0.title, summary: $0.summary) }
     }
     func entry(id: String, category: String) throws -> PromptEntry? { entries.first { $0.id == id && $0.categoryID == category } }
+    func create(_ entry: PromptEntry, operationID: UUID) throws {
+        try entry.validateCreation()
+        guard !entries.contains(where: { $0.id == entry.id }) else { throw SQLiteFailure(code: 19) }
+        entries.append(entry)
+    }
 }
 
 enum LauncherPage: Equatable {
@@ -120,13 +149,14 @@ enum LauncherPage: Equatable {
 struct PageMemory {
     var selection = 0
     var scrollY: CGFloat = 0
+    var selectionID: String? = nil
 }
 
 struct NavigationState {
     private(set) var page: LauncherPage = .categories
     private(set) var memory: [String: PageMemory] = [:]
-    mutating func remember(selection: Int, scrollY: CGFloat) {
-        memory[page.key] = .init(selection: selection, scrollY: scrollY)
+    mutating func remember(selection: Int, scrollY: CGFloat, selectionID: String? = nil) {
+        memory[page.key] = .init(selection: selection, scrollY: scrollY, selectionID: selectionID)
     }
     mutating func open(_ page: LauncherPage) { self.page = page }
     @discardableResult mutating func back() -> Bool {

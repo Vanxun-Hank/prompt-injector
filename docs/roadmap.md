@@ -1,6 +1,6 @@
 # 阶段与验收
 
-当前状态（2026-10-30）：**Stage 1 在当前 macOS / Codex 普通主输入框范围验收完成**。已有 SQLite 分层存储、真实在线/断网插入不发送、未授权拒绝和复制降级、原输入框失效保护、性能基线与完整回归套件。证据与边界见 [stage1-acceptance.md](stage1-acceptance.md)；不自动开始 Stage 2。原型沿革和授权记录仍在 [prototype.md](prototype.md)。
+当前状态（2026-10-30）：**Stage 1 在当前 macOS / Codex 普通主输入框范围验收完成；Stage 2 的 v0.2.0 手动新增最小闭环已完成，并通过当前 Codex 普通主输入框复核**。本轮源码交付不含新标签或安装包发布。Stage 1 证据见 [stage1-acceptance.md](stage1-acceptance.md)，当前记录见 [stage2-acceptance.md](stage2-acceptance.md)。原型沿革和授权记录仍在 [prototype.md](prototype.md)。
 
 ## Stage 1 · v0.1 · 快捷调用
 
@@ -16,9 +16,11 @@
 
 不含：搜索、管理窗口、LLM、云端同步、其他应用兼容承诺。
 
-## Stage 2 · v0.2.x · 内容维护（未实现）
+## Stage 2 · v0.2.x · 内容维护（v0.2.0 最小新增闭环已验收）
 
 详细拆分见 [stage2-plan.md](stage2-plan.md)：先完成 v0.2.0 新增闭环，再依次编辑、搜索、导出、导入和删除，每个版本独立验收和回滚。
+
+当前仅支持独立管理窗口手动新增、事务保存与即时刷新。编辑、搜索、导出、导入和删除尚未实现。
 
 范围：独立管理窗口，手动新增/编辑/删除，固定分类，标题和简述搜索，JSON 导入导出。字段包括标题、简述、原文、作者/来源、解释和 Prompt。
 

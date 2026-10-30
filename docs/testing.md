@@ -1,4 +1,4 @@
-# Stage 1 回归测试套件
+# Stage 1–2 回归测试套件
 
 每次代码或行为修改、每个 Stage 交付前，运行同一个入口：
 
@@ -15,10 +15,12 @@ python3 scripts/test-suite.py
 | 范围 | 测试入口与断言 |
 | --- | --- |
 | SQLite 初始化与重启 | `SQLiteRepositoryTests`：首次事务建库、稳定 ID/所有字段往返、重启不读取种子、不重复、不覆盖修改、不复活删除 |
+| 新增与保存 | `CreationTests`：必填、后台保存、重复点击、失败保留表单和 UUID、同 ID 重试、成功后明确继续新增；`SQLiteRepositoryTests`：create 回读/重开、v1、重复 ID、COMMIT 失败回滚、并发排序与日志无正文 |
 | 分层读取 | SQLite column authorizer 禁止读取正文列，分类和列表仍成功，详情必须读取正文；不是仅检查 SQL 字符串 |
 | 数据边界 | 中文、emoji、多行、引号、NUL 精确保留，参数绑定、错误分类隔离、空列表/缺失条目 |
 | 迁移与故障 | 无效种子回滚、再次打开可恢复、损坏/较新版本不覆盖、查询失败记录元数据、并发首次打开无重复 |
 | 异步页面 | `LibraryLoadingTests`：仓储不在主线程执行，迟到详情不覆盖新页面，失败不保留可插入的旧 Prompt，重试恢复，选择记忆，原样传递插入内容 |
+| 保存后刷新 | `LibraryLoadingTests`：提交后即时刷新、重排后按 ID 保留选择、同页迟到详情丢弃、详情重载失败不恢复旧 Prompt、不相关分类不重载；原生检查覆盖新条目精确复制/插入路由/新连接回读 |
 | 系统插入逻辑 | `InsertionTests`、`BugRegressionTests`：Codex 选粘贴路径、完整回读判定、UTF-16 选区、剪贴板所有权、权限变化、旧成功状态与非法配置 |
 | 导航与排版 | `NavigationTests`：独立滚动/选择记忆、种子内容完整、只有代码段等宽字体 |
 | 日志 | `DiagnosticLogTests`：跨操作历史、轮转、并发、写入失败隔离；Python 查看工具过滤与不完整行 |
@@ -37,7 +39,9 @@ python3 scripts/test-suite.py
 
 不使用测试模拟替代上述系统验收。已建立带样本量的内存、空闲 CPU、热唤起性能基线，见 [stage1-acceptance.md](stage1-acceptance.md)；SQLite 查询日志耗时不是端到端唤起延迟。
 
-## 本次验证基线
+## 验证记录
+
+2026-10-30 v0.2.0：56 Swift + 7 Python + 82 原生检查通过，生成 15 张截图（新增管理窗口默认/最小尺寸两张）；提交前独立输出至 `build/Commit-Review/` 再次完整通过。使用临时 SQLite；用户人工复核的修复包位于 `build/Review-Empty-Fix/`，未覆盖运行中的审查包或原正式包。初版新条目的真实 Codex 插入、修正包重启持久化已由用户确认；空框结构标记已真实采集，PI-010 修复包的实际新增 Prompt 插入已获用户确认且全文回读一致，见 [stage2-acceptance.md](stage2-acceptance.md)。`TargetTextTests` 4 项先失败后通过，覆盖结构空框、相同提示文案的真实正文、选区、应用/角色边界及输入后状态变化；保留 16/106/90 前缀反例，不用放宽匹配修复空框。套件报告要求新增检查存在，不能用 Stage 1 的旧报告冒充通过。
 
 2026-10-29：29 项 Swift、4 项 Python、67 项原生窗口检查通过。基线报告为 本地该轮 `artifacts/tests/` 报告（不公开），构建 `20261029T063641Z`。后续以每次套件产生的独立报告为准，不以这里的历史计数推断通过。
 

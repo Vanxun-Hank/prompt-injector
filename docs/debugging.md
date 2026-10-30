@@ -35,12 +35,20 @@ python3 scripts/read-logs.py --build 实际的buildID
 | `permission.changed` / `permission.requested` | 实际进程授权变化、用户请求系统授权 |
 | `shortcut.*` / `preference.invalid` | 快捷键注册结果、配置回退 |
 | `launcher.*` / `page.changed` / `copy.*` | 显示隐藏、层级切换、完整 Prompt 复制结果 |
+| `management.opened/save` / `storage.save_started/saved/failed` | 新增入口、必填早退、重复点击忽略、后台事务提交或失败；同次保存以 operationID 关联，不记录字段值 |
+| `library.refreshed/load_discarded` | 保存后的受影响页重载、按查询代次丢弃迟到结果 |
 | `capture.started/ready/failed` | 新目标捕获与文本/选区/编辑能力判断 |
 | `insertion.started/stage/write_requested` | 权限、目标、松开快捷键、恢复焦点、写入与验证阶段 |
 | `insertion.verified/failed/unconfirmed` | 回读匹配、明确失败、写入后无法确认 |
 | `clipboard.restored/kept` | 恢复原剪贴板，或因所有权变化保留用户新内容 |
 
 诊断字段为固定类型：阶段、错误代码、能力布尔值、目标 bundle ID、角色、长度、耗时等。禁止记录 Prompt、经验原文、输入框正文、剪贴板数据、来源 URL、凭证或逐键输入；不接受任意文本 payload。
+
+调查版日志曾附加 `axCharacterCount`、`placeholderUTF16Count`、`valueMatchesPlaceholder`、`rangeTextUTF16Count`、`valueMatchesRangeText`、`rangeReadCode`。它们是当时的计数、API 结果和相等关系；字段缺失不当作零。修复版已移除这些探索性读取，历史原始 JSONL 仍可由查看工具读取，没有占位文本或输入正文。
+
+对 Codex 的非空 AXTextArea 读取值、零长度起始选区，另在捕获目标内部最多检查 32 个节点的 `AXDOMClassList`。仅记录 `domClassMetadataAvailable`、`proseMirrorRootSeen`、`emptyComposerMarkerSeen`、`inspectedNodeCount`；不记录类名数组或子节点文本，也不查询其他窗口。标记“未见”不等于空框。真实采集确认可靠标记后，PI-010 仅用根/空段落标记同时存在的结构证据解析空文档；没有标记时保留原值与严格匹配。
+
+`axValueUTF16Count` 为捕获时原始 AXValue 的长度；`beforeUTF16Count` 为插入计划使用的实际正文长度。修复后的已识别空框应见原始值非零、正文为 0、`emptyComposerNormalized=true`。这仍不是插入成功，必须再看同 operationID 的 `insertion.verified` 与用户未发送确认。结构/原值/选区读取变化时不会完成归一化。
 
 `insertion.lastResult` 和 `accessibility.permissionSnapshot` 保留为快速状态快照；完整历史以 JSONL 为准。新的捕获/插入与所有提前失败均更新结果，避免旧成功状态残留。
 

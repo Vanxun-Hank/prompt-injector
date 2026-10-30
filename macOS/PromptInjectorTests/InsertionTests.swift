@@ -3,6 +3,18 @@ import AppKit
 @testable import PromptInjector
 
 final class InsertionTests: XCTestCase {
+    func testAmbiguousSixteenUnitValueCannotAuthorizeDiscardingRealText() throws {
+        let captured = "0123456789abcde\n"
+        let prompt = String(repeating: "x", count: 90)
+        let plan = try XCTUnwrap(InsertionPlan(before: captured, range: NSRange(location: 0, length: 0), prompt: prompt))
+        XCTAssertEqual(plan.expected.utf16.count, 106)
+        XCTAssertFalse(plan.matches(prompt))
+        XCTAssertTrue(plan.matches(prompt + captured))
+        // The same AX value can describe actual text; length alone cannot identify a placeholder.
+        let observation = InsertionObservation(expected: plan.expected, observed: prompt)
+        XCTAssertEqual(observation.observedUTF16Count, 90)
+        XCTAssertFalse(observation.matchesIgnoringLineBreaks)
+    }
     func testUTF16SelectionPreservesTextAroundEmoji() throws {
         let before = "前🙂后"
         let plan = try XCTUnwrap(InsertionPlan(before: before, range: NSRange(location: 1, length: 2), prompt: "第一行\n第二行"))

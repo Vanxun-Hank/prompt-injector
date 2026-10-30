@@ -4,6 +4,7 @@ import Carbon
 @MainActor final class AppDelegate: NSObject, NSApplicationDelegate {
     var verificationDatabaseDirectory: URL?
     var controller: LauncherWindowController?
+    private(set) var managementController: ManagementWindowController?
     private var status: NSStatusItem?
     private var hotKey: EventHotKeyRef?
     private var hotKeyHandler: EventHandlerRef?
@@ -59,6 +60,12 @@ import Carbon
         else { controller.show(capturing: externalTarget()) }
     }
     @objc private func quit() { NSApp.terminate(nil) }
+    @objc func manageContent() {
+        guard let controller else { return }
+        controller.hide(animated: false)
+        if managementController == nil { managementController = ManagementWindowController(library: controller.launcher.library) }
+        managementController?.present()
+    }
     @objc private func requestAccessibility() { AccessibilityAccess.request() }
     func applicationDidBecomeActive(_ notification: Notification) { AccessibilityAccess.refresh() }
     private func setupMenu() {
@@ -70,6 +77,8 @@ import Carbon
         open.keyEquivalentModifierMask = shortcutOptions[min(selectedShortcut, shortcutOptions.count - 1)].cocoa
         open.target = self; menu.addItem(open)
         openItem = open
+        let manage = NSMenuItem(title: "管理内容", action: #selector(manageContent), keyEquivalent: "")
+        manage.target = self; menu.addItem(manage)
         let shortcuts = NSMenu(title: "唤醒快捷键")
         for (index, option) in shortcutOptions.enumerated() {
             let item = NSMenuItem(title: option.title, action: #selector(changeShortcut(_:)), keyEquivalent: "")
@@ -88,8 +97,9 @@ import Carbon
         let appItem = NSMenuItem(); appItem.submenu = menu.copy() as? NSMenu
         main.addItem(appItem)
         let edit = NSMenu(title: "编辑")
-        edit.addItem(withTitle: "复制", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        edit.addItem(withTitle: "全选", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        for (title, action, key) in [("撤销", Selector(("undo:")), "z"), ("剪切", #selector(NSText.cut(_:)), "x"), ("复制", #selector(NSText.copy(_:)), "c"), ("粘贴", #selector(NSText.paste(_:)), "v"), ("全选", #selector(NSText.selectAll(_:)), "a")] {
+            edit.addItem(withTitle: title, action: action, keyEquivalent: key)
+        }
         let editItem = NSMenuItem(); editItem.submenu = edit; main.addItem(editItem)
         NSApp.mainMenu = main
     }

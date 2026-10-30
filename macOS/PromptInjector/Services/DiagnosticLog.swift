@@ -13,6 +13,9 @@ enum DiagnosticEvent: String, Codable, Sendable {
     case insertionVerified = "insertion.verified", insertionUnconfirmed = "insertion.unconfirmed", insertionFailed = "insertion.failed"
     case clipboardRestored = "clipboard.restored", clipboardKept = "clipboard.kept"
     case storageOpened = "storage.opened", storageMigrating = "storage.migrating", storageQuery = "storage.query", storageFailed = "storage.failed"
+    case storageSaveStarted = "storage.save_started", storageSaved = "storage.saved"
+    case managementOpened = "management.opened", managementSave = "management.save"
+    case libraryRefreshed = "library.refreshed", libraryLoadDiscarded = "library.load_discarded"
     case probe = "diagnostics.probe"
 }
 
@@ -51,6 +54,12 @@ struct DiagnosticFields: Codable, Sendable {
     var observedLineBreakCount: Int? = nil
     var matchesCollapsingBlankLines: Bool? = nil
     var matchesIgnoringLineBreaks: Bool? = nil
+    var domClassMetadataAvailable: Bool? = nil
+    var proseMirrorRootSeen: Bool? = nil
+    var emptyComposerMarkerSeen: Bool? = nil
+    var inspectedNodeCount: Int? = nil
+    var axValueUTF16Count: Int? = nil
+    var emptyComposerNormalized: Bool? = nil
 }
 
 struct BuildIdentity: Codable, Sendable {

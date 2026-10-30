@@ -115,4 +115,86 @@ final class SQLiteRepositoryTests: XCTestCase {
         XCTAssertEqual(group.wait(timeout: .now() + 5), .success)
         XCTAssertEqual(try repository().summaries(in: "debugging").count, 3)
     }
+
+    private func newEntry(id: String = UUID().uuidString, category: String = "coding", title: String = " 标题😀 ' ", prompt: String = "\n中文😀\n```swift\nlet x = \"'\"\n\n```\n\0尾部\n") -> PromptEntry {
+        .init(id: id, categoryID: category, title: title, summary: "简述 ' emoji🧑🏽‍💻", originalExperience: "原文\n\0保留", source: "来源\nhttps://example.com/'", explanation: "解释\n分段", prompt: prompt)
+    }
+    func testCreateAllFieldsSurviveRestartWithStableUUIDAndSchemaV1() throws {
+        let entry = newEntry()
+        do {
+            let repo = repository()
+            try repo.create(entry, operationID: UUID())
+            XCTAssertEqual(try repo.entry(id: entry.id, category: entry.categoryID), entry)
+            XCTAssertEqual(try repo.summaries(in: "coding").last?.id, entry.id)
+        }
+        let reopened = repository { XCTFail("Creation must not cause reseeding"); return [] }
+        XCTAssertEqual(try reopened.entry(id: entry.id, category: "coding"), entry)
+        var db: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(url.path, &db), SQLITE_OK); defer { sqlite3_close(db) }
+        var statement: OpaquePointer?
+        XCTAssertEqual(sqlite3_prepare_v2(db, "PRAGMA user_version", -1, &statement, nil), SQLITE_OK)
+        defer { sqlite3_finalize(statement) }
+        XCTAssertEqual(sqlite3_step(statement), SQLITE_ROW); XCTAssertEqual(sqlite3_column_int(statement, 0), 1)
+    }
+    func testCreateRejectsInvalidFieldsAndDuplicateIDWithoutReplacingData() throws {
+        let repo = repository()
+        let entry = newEntry()
+        try repo.create(entry, operationID: UUID())
+        for invalid in [newEntry(id: "' OR 1=1 --"), newEntry(category: "coding' OR 1=1 --"), newEntry(title: " \n\t"), newEntry(prompt: " \n\t"), newEntry(id: entry.id, title: "不可覆盖")] {
+            XCTAssertThrowsError(try repo.create(invalid, operationID: UUID()))
+        }
+        XCTAssertEqual(try repo.entry(id: entry.id, category: "coding"), entry)
+        XCTAssertEqual(try repo.summaries(in: "coding").count, 2)
+    }
+    func testCommitFailureRollsBackAndRetryUsesSameIDWithoutDuplicateOrOrderGap() throws {
+        let repo = repository { [] }
+        var connection: OpaquePointer?
+        repo.didOpen = { db in
+            connection = db
+            sqlite3_set_authorizer(db, { _, action, value, _, _, _ in
+                if action == SQLITE_TRANSACTION, let value, String(cString: value) == "COMMIT" { return SQLITE_DENY }
+                return SQLITE_OK
+            }, nil)
+        }
+        let entry = newEntry()
+        XCTAssertThrowsError(try repo.create(entry, operationID: UUID()))
+        XCTAssertTrue(try repo.summaries(in: "coding").isEmpty)
+        // Both the failed connection and a new connection must see the rollback.
+        let retry = repository { XCTFail("Must not reseed"); return [] }
+        XCTAssertTrue(try retry.summaries(in: "coding").isEmpty)
+        sqlite3_set_authorizer(connection, nil, nil)
+        try repo.create(entry, operationID: UUID())
+        XCTAssertEqual(try repo.entry(id: entry.id, category: "coding"), entry)
+        XCTAssertThrowsError(try retry.create(entry, operationID: UUID()))
+        XCTAssertEqual(try retry.summaries(in: "coding").map(\.id), [entry.id])
+        try sql("CREATE TRIGGER require_next_order BEFORE INSERT ON prompts WHEN NEW.sort_order != 1 BEGIN SELECT RAISE(ABORT, 'order'); END;")
+        try retry.create(newEntry(), operationID: UUID())
+    }
+    func testConcurrentCreatesAllocateDistinctSortOrdersInTransactions() throws {
+        let entries = [newEntry(), newEntry()]
+        _ = try repository { [] }.categories()
+        let group = DispatchGroup()
+        for entry in entries {
+            group.enter()
+            DispatchQueue.global().async {
+                defer { group.leave() }
+                do { try self.repository().create(entry, operationID: UUID()) }
+                catch { XCTFail("Concurrent create failed: \(error)") }
+            }
+        }
+        XCTAssertEqual(group.wait(timeout: .now() + 5), .success)
+        XCTAssertEqual(Set(try repository().summaries(in: "coding").map(\.id)), Set(entries.map(\.id)))
+    }
+    func testCreationDiagnosticsContainOperationAndCodesWithoutFields() throws {
+        let entry = newEntry(title: "PRIVATE_TITLE", prompt: "PRIVATE_PROMPT")
+        let operation = UUID()
+        let repo = repository()
+        try repo.create(entry, operationID: operation)
+        XCTAssertThrowsError(try repo.create(entry, operationID: UUID()))
+        logger.flush()
+        let logs = try String(contentsOf: dir.appendingPathComponent("logs/events.jsonl"), encoding: .utf8)
+        XCTAssertTrue(logs.contains("storage.saved")); XCTAssertTrue(logs.contains("storage.failed"))
+        XCTAssertTrue(logs.contains(operation.uuidString))
+        for secret in [entry.id, entry.title, entry.prompt, entry.source] { XCTAssertFalse(logs.contains(secret)) }
+    }
 }

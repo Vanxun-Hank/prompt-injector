@@ -41,6 +41,23 @@ final class DiagnosticLogTests: XCTestCase {
         }
         XCTAssertEqual(try records(dir).max { $0.sequence < $1.sequence }?.fields.systemCode, 99)
     }
+    func testInputDiagnosticsStoreOnlyRawAndSemanticCountsAndStructureFlags() throws {
+        let dir = directory(); defer { try? FileManager.default.removeItem(at: dir) }
+        let logger = DiagnosticLog(directory: dir, build: build)
+        logger.write(.captureReady, fields: .init(beforeUTF16Count: 0, domClassMetadataAvailable: true, proseMirrorRootSeen: true, emptyComposerMarkerSeen: true, inspectedNodeCount: 2, axValueUTF16Count: 16, emptyComposerNormalized: true))
+        logger.flush()
+        let entry = try XCTUnwrap(records(dir).first)
+        XCTAssertEqual(entry.fields.domClassMetadataAvailable, true)
+        XCTAssertEqual(entry.fields.emptyComposerMarkerSeen, true)
+        XCTAssertEqual(entry.fields.inspectedNodeCount, 2)
+        XCTAssertEqual(entry.fields.beforeUTF16Count, 0)
+        XCTAssertEqual(entry.fields.axValueUTF16Count, 16)
+        XCTAssertEqual(entry.fields.emptyComposerNormalized, true)
+        let data = try Data(contentsOf: dir.appendingPathComponent("events.jsonl")).split(separator: 10)[0]
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(data)) as? [String: Any])
+        let fields = try XCTUnwrap(json["fields"] as? [String: Any])
+        XCTAssertEqual(Set(fields.keys), ["beforeUTF16Count", "domClassMetadataAvailable", "proseMirrorRootSeen", "emptyComposerMarkerSeen", "inspectedNodeCount", "axValueUTF16Count", "emptyComposerNormalized"])
+    }
     func testConcurrentWritersProduceIndependentSessionsWithoutCorruptingJSON() throws {
         let dir = directory(); defer { try? FileManager.default.removeItem(at: dir) }
         let first = DiagnosticLog(directory: dir, build: build), second = DiagnosticLog(directory: dir, build: build)

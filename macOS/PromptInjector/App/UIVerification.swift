@@ -27,12 +27,13 @@ extension AppDelegate {
                 window.sendEvent(event)
                 await ready()
             }
-            @MainActor func capture(_ name: String) async {
-                window.makeKeyAndOrderFront(nil)
+            @MainActor func capture(_ name: String, target: NSWindow? = nil) async {
+                let captureWindow = target ?? window
+                captureWindow.makeKeyAndOrderFront(nil)
                 NSApp.activate(ignoringOtherApps: true)
                 await settle()
                 let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-                let f = name == "default-shell" ? window.frame.insetBy(dx: -24, dy: -24) : window.frame
+                let f = name == "default-shell" ? captureWindow.frame.insetBy(dx: -24, dy: -24) : captureWindow.frame
                 let screenTop = NSScreen.screens.first?.frame.maxY ?? 0
                 p.arguments = ["-x", "-R", "\(Int(f.minX)),\(Int(screenTop-f.maxY)),\(Int(f.width)),\(Int(f.height))", output + "/" + name + ".png"]
                 do { try p.run(); p.waitUntilExit(); check("capture/" + name, p.terminationStatus == 0) }
@@ -205,6 +206,78 @@ extension AppDelegate {
             window.setFrame(original, display: true)
             v.navigate(to: .categories, animate: false)
             await ready()
+            // Stage 2 exercises the actual menu action, form and shared temporary SQLite library.
+            v.navigate(to: .entries("coding"), animate: false); await ready()
+            manageContent()
+            if let form = managementController, let managementWindow = form.window {
+                check("management/separate-native-window", managementWindow !== window && !window.isVisible && managementWindow.styleMask.contains(.titled))
+                form.category.selectItem(at: 1)
+                form.titleField.stringValue = "本地新增 · 中文😀"
+                form.summaryField.stringValue = "保存、复制与重启检查"
+                form.originalExperience.string = "原始经验\n保留作者表达。"
+                form.source.string = "项目验证数据"
+                form.explanation.string = "用于隔离资料库验证，不写入个人内容。"
+                form.prompt.string = "中文😀\n\n```swift\nlet value = \"原文\"\n\n```\n"
+                let expected = form.entry
+                managementWindow.contentView?.layoutSubtreeIfNeeded()
+                await capture("management-default", target: managementWindow)
+                managementWindow.setContentSize(NSSize(width: 480, height: 400))
+                managementWindow.center(); managementWindow.contentView?.layoutSubtreeIfNeeded()
+                await capture("management-minimum", target: managementWindow)
+                form.titleField.stringValue = ""; form.prompt.string = ""
+                form.save()
+                check("management/required-fields", !form.titleError.isHidden && !form.promptError.isHidden && !form.isSaving)
+                form.titleField.stringValue = expected.title; form.prompt.string = expected.prompt
+                let saveFrame = form.saveButton.convert(form.saveButton.bounds, to: managementWindow.contentView)
+                check("management/fixed-save-action", saveFrame.minY >= 0 && saveFrame.maxX <= (managementWindow.contentView?.bounds.width ?? 0))
+                // Native text input owns Return; it must never trigger saving or launcher routing.
+                managementWindow.makeFirstResponder(form.prompt)
+                form.prompt.setSelectedRange(NSRange(location: (form.prompt.string as NSString).length, length: 0))
+                let enter = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: managementWindow.windowNumber, context: nil, characters: "\r", charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36)!
+                managementWindow.sendEvent(enter)
+                check("management/return-edits-does-not-save", form.prompt.string == expected.prompt + "\n" && !form.isSaving && !form.isSaved)
+                form.prompt.string = expected.prompt
+                form.save(); form.save()
+                for _ in 0..<300 {
+                    if !form.isSaving { break }
+                    try? await Task.sleep(nanoseconds: 10_000_000)
+                }
+                await ready()
+                check("management/save-succeeds-once", form.isSaved && !form.saveButton.isEnabled && form.entry == expected && v.numberOfRows(in: v.table) == 2)
+                check("management/list-selection-preserved", v.table.selectedRow == 0)
+                managementWindow.close(); manageContent()
+                check("management/reopen-preserves-form", managementController === form && form.entry == expected && form.isSaved)
+                managementWindow.close()
+                controller.show(capturing: nil)
+                v.table.selectRowIndexes(IndexSet(integer: 1), byExtendingSelection: false)
+                v.openSelection(); await ready()
+                check("management/new-detail-exact-fields", v.currentEntry == expected)
+                var inserted: PromptEntry?
+                let originalInsert = v.onInsert
+                v.onInsert = { inserted = $0 }
+                await key(36, [.command])
+                check("management/new-prompt-routes-exactly", inserted == expected)
+                v.onInsert = originalInsert
+                let copiedSnapshot = NSPasteboard.general.pasteboardItems?.map { item in item.types.compactMap { type in item.data(forType: type).map { (type, $0) } } } ?? []
+                v.copyPrompt()
+                let copyCount = NSPasteboard.general.changeCount
+                check("management/copy-exact-prompt", NSPasteboard.general.string(forType: .string) == expected.prompt)
+                if NSPasteboard.general.changeCount == copyCount {
+                    NSPasteboard.general.clearContents()
+                    let items = copiedSnapshot.map { values -> NSPasteboardItem in
+                        let item = NSPasteboardItem(); values.forEach { item.setData($0.1, forType: $0.0) }; return item
+                    }
+                    NSPasteboard.general.writeObjects(items)
+                }
+                if let directory = verificationDatabaseDirectory {
+                    let reopened = PromptLibrary(repository: SQLitePromptRepository(url: directory.appendingPathComponent("library.sqlite3"), seed: { [] }))
+                    let result: Result<LibraryPageContent, Error> = await withCheckedContinuation { continuation in
+                        reopened.load(.detail(expected.categoryID, expected.id)) { continuation.resume(returning: $0) }
+                    }
+                    if case .success(.detail(let value)) = result { check("management/reopened-database-exact-fields", value == expected) }
+                    else { check("management/reopened-database-exact-fields", false) }
+                }
+            } else { check("management/window-created", false) }
             backdrop.orderOut(nil)
             let report: [String: Any] = ["buildID": BuildIdentity.current.buildID, "sourceFingerprint": BuildIdentity.current.sourceFingerprint, "sessionID": DiagnosticLog.shared.sessionID.uuidString, "completedAt": ISO8601DateFormatter().string(from: Date()), "checks": checks, "passed": checks.allSatisfy { $0["passed"] as? Bool == true }, "capture": "Live macOS desktop region with a controlled backdrop window", "macOS": ProcessInfo.processInfo.operatingSystemVersionString, "notVerified": ["Codex real input insertion and target loss after capture (requires app accessibility permission)", "Chinese input-source candidate selection (marked-text guard tested)", "manual edge/corner dragging", "changing global system reduced transparency setting (rendering path tested directly)"]]
             if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) {

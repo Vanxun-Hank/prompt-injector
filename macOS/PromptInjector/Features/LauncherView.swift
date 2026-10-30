@@ -141,8 +141,10 @@ final class PromptTable: NSTableView {
         [listScroll, detailScroll].forEach(contentHost.addSubview)
         [header, contentHost, separator, footer].forEach(addSubview)
         finishOutline()
+        NotificationCenter.default.addObserver(self, selector: #selector(libraryChanged(_:)), name: PromptLibrary.didChange, object: nil)
         showPage()
     }
+    deinit { NotificationCenter.default.removeObserver(self) }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override func layout() {
@@ -201,7 +203,9 @@ final class PromptTable: NSTableView {
     @objc private func rowClicked() { if table.clickedRow >= 0 { openSelection() } }
     func remember() {
         guard !isLoading else { return }
-        navigation.remember(selection: max(0, table.selectedRow), scrollY: currentEntry == nil ? listScroll.contentView.bounds.origin.y : detailScroll.contentView.bounds.origin.y)
+        let index = table.selectedRow
+        let id = navigation.page == .categories ? (categories.indices.contains(index) ? categories[index].id : nil) : (visibleEntries.indices.contains(index) ? visibleEntries[index].id : nil)
+        navigation.remember(selection: max(0, index), scrollY: currentEntry == nil ? listScroll.contentView.bounds.origin.y : detailScroll.contentView.bounds.origin.y, selectionID: id)
     }
     func navigate(to page: LauncherPage, animate: Bool = true) {
         guard page != navigation.page else { return }
@@ -249,7 +253,11 @@ final class PromptTable: NSTableView {
         backButton.isHidden = page == .categories
         updateHeader()
         library.load(page) { [weak self] result in
-            guard let self, self.loadGeneration == generation, self.navigation.page == page else { return }
+            guard let self else { return }
+            guard self.loadGeneration == generation, self.navigation.page == page else {
+                DiagnosticLog.shared.write(.libraryLoadDiscarded, fields: .init(toLevel: page.level))
+                return
+            }
             self.isLoading = false
             self.table.isEnabled = true
             switch result {
@@ -270,6 +278,21 @@ final class PromptTable: NSTableView {
         }
     }
     func retryFailedLoad() { if loadFailed && !isLoading { showPage() } }
+    @objc private func libraryChanged(_ notification: Notification) {
+        guard let library = notification.object as? PromptLibrary, library === self.library,
+              let category = notification.userInfo?["categoryID"] as? String else { return }
+        refresh(category: category)
+    }
+    private func refresh(category: String) {
+        switch navigation.page {
+        case .categories: return // Fixed categories have no counts or body data to refresh.
+        case .entries(let id), .detail(let id, _): guard id == category else { return }
+        }
+        remember()
+        pageTransition.cancel()
+        DiagnosticLog.shared.write(.libraryRefreshed, fields: .init(toLevel: navigation.page.level))
+        showPage()
+    }
     private func renderPage() {
         let detail = currentEntry != nil
         detailScroll.isHidden = !detail; listScroll.isHidden = detail
@@ -282,7 +305,9 @@ final class PromptTable: NSTableView {
         } else {
             table.reloadData()
             let count = numberOfRows(in: table)
-            if count > 0 { table.selectRowIndexes(IndexSet(integer: min(navigation.restored.selection, count - 1)), byExtendingSelection: false) }
+            let ids = navigation.page == .categories ? categories.map(\.id) : visibleEntries.map(\.id)
+            let selected = navigation.restored.selectionID.flatMap { ids.firstIndex(of: $0) } ?? min(navigation.restored.selection, count - 1)
+            if count > 0 { table.selectRowIndexes(IndexSet(integer: selected), byExtendingSelection: false) }
             if count == 0 { showFeedback("暂无条目", error: false, persist: true) }
         }
         needsLayout = true; layoutSubtreeIfNeeded()

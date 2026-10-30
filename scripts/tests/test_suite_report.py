@@ -10,9 +10,12 @@ class SuiteReportTests(unittest.TestCase):
     def valid_report(self):
         names = ['toggle/visible-hides','motion/interrupted-show-remains-visible','copy/actual-pasteboard',
                  'minimum/plain-return-does-not-insert','page-motion/rapid-navigation-preserves-state',
-                 'keyboard/command-return-routes-current-prompt','keyboard/detail-return-does-not-route-insertion']
-        names += [f'capture/{i}' for i in range(13)]
-        names += [f'check/{i}' for i in range(67-len(names))]
+                 'keyboard/command-return-routes-current-prompt','keyboard/detail-return-does-not-route-insertion',
+                 'management/save-succeeds-once','management/new-detail-exact-fields',
+                 'management/reopened-database-exact-fields','management/copy-exact-prompt',
+                 'management/return-edits-does-not-save','management/new-prompt-routes-exactly']
+        names += [f'capture/{i}' for i in range(15)]
+        names += [f'check/{i}' for i in range(82-len(names))]
         return {'passed':True,'checks':[{'name':n,'passed':True} for n in names]}
     def testFailingAnimationCannotBeHiddenByTopLevelPassedFlag(self):
         report=self.valid_report()
@@ -22,4 +25,7 @@ class SuiteReportTests(unittest.TestCase):
     def testMissingCapturesOrEmptyReportNeverCountAsPass(self):
         self.assertFalse(suite.validate_ui_report({'passed':True,'checks':[]}))
         report=self.valid_report();report['checks']=[c for c in report['checks'] if not c['name'].startswith('capture/')]
+        self.assertFalse(suite.validate_ui_report(report))
+    def testMissingCreationChecksNeverCountAsPass(self):
+        report=self.valid_report(); report['checks']=[c for c in report['checks'] if not c['name'].startswith('management/')]
         self.assertFalse(suite.validate_ui_report(report))
