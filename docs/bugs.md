@@ -12,6 +12,9 @@
 | PI-006 | 系统开关已开，但重建后的临时签名程序仍无权限 | 使用有效开发证书保持身份；用户重新添加当前 `.app` 授权 | 实际进程 trusted 与签名检查；TCC 行为不能纯单测证明 |
 | PI-007 | Codex 标准粘贴路径仍要求 AX setter 可写 | 按实际插入方法判断，Codex 的聚焦 AXGroup 可作为候选；明确只读/禁用/安全/不可读仍拒绝 | `PasteCapabilityTests.testObservedCodexGroupCanPasteWithoutAXSetters` 修复前失败、修复后通过；另测其他应用不扩大兼容 |
 | PI-008 | 非文本控件可能因 value 可写被当作输入框；错误提示也不够明确 | 按钮、勾选框、单选框、滑块、弹出按钮和菜单项明确拒绝，提示重新从文字输入框唤起 | `testNonTextControlsRemainRejectedEvenWithWritableValue` 覆盖两种写入方式，修复前 12 个断言失败、修复后通过 |
+| PI-009 | 新增异步退出排空后，MainActor Task 调用 terminate 进入 terminateLater 嵌套事件循环，主队列完成回调无法执行，进程卡住 | 先返回 terminateCancel，异步完成草稿与队列排空后再次退出；失败保留应用与表单 | `ManagementTests.testMainActorTerminationExitsAfterPendingUsageIsCommitted`：旧实现实测 3 秒超时失败，修复后进程正常退出且使用记录落盘；不依赖桌面截图 |
+| PI-010 | 小窗超长标题只缩小 NSTextView 的 frame，文字布局仍有 234 pt 高，会绘制到下方页签 | 标题布局限为两行并截尾，保留完整 tooltip／原始字段；正文仍独立滚动 | `NavigationTests.testLongTitleDoesNotPaintBehindDetailControls` 修复前 234 > 52 失败，修复后通过；原生长内容截图复核 |
+| PI-011 | 插入失败后 defer 无条件重新启用按钮，错误态仍能通过按钮／⌘Return 发起操作 | 已确认权限／目标／未确认写入失败保持禁用，复制不受影响；新目标捕获成功才恢复，剪贴板与快捷键暂态错误仍可重试 | `NavigationTests.testPermissionFailureDisablesInsertionAndPreservesCopy` 修复前失败；原生 `keyboard/blocked-command-return-no-route` 与恢复检查 |
 
 ## 系统排查中应保留的判断
 

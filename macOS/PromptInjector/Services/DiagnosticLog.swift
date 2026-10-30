@@ -2,6 +2,7 @@ import Foundation
 import Darwin
 
 enum DiagnosticEvent: String, Codable, Sendable {
+    case appStopping = "app.stopping"
     case appStarted = "app.started", appStopped = "app.stopped", libraryFailed = "library.load_failed"
     case permissionChanged = "permission.changed", permissionRequested = "permission.requested"
     case shortcutRegistered = "shortcut.registered", shortcutFailed = "shortcut.failed", preferenceInvalid = "preference.invalid"
@@ -11,8 +12,10 @@ enum DiagnosticEvent: String, Codable, Sendable {
     case captureStarted = "capture.started", captureReady = "capture.ready", captureFailed = "capture.failed"
     case insertionStarted = "insertion.started", insertionStage = "insertion.stage", writeRequested = "insertion.write_requested"
     case insertionVerified = "insertion.verified", insertionUnconfirmed = "insertion.unconfirmed", insertionFailed = "insertion.failed"
+    case insertionBlocked = "insertion.blocked"
     case clipboardRestored = "clipboard.restored", clipboardKept = "clipboard.kept"
     case storageOpened = "storage.opened", storageMigrating = "storage.migrating", storageQuery = "storage.query", storageFailed = "storage.failed"
+    case storageSaved = "storage.saved", draftSaved = "draft.saved", usageRecorded = "usage.recorded"
     case probe = "diagnostics.probe"
 }
 
@@ -100,7 +103,7 @@ final class DiagnosticLog: @unchecked Sendable {
     init(directory: URL, build: BuildIdentity = .current, sessionID: UUID = UUID(), maxFileBytes: Int = 1_048_576, archiveCount: Int = 3, mode: String? = nil) {
         directoryURL = directory; self.build = build; self.sessionID = sessionID
         self.maxFileBytes = max(2048, maxFileBytes); self.archiveCount = max(0, archiveCount)
-        self.mode = mode ?? (CommandLine.arguments.contains("--verify-ui") ? "ui-verification" : "application")
+        self.mode = mode ?? (CommandLine.arguments.contains("--verify-ui") ? "ui-verification" : CommandLine.arguments.contains("--verify-termination") ? "headless-verification" : "application")
         queue.setSpecific(key: queueKey, value: true)
     }
 

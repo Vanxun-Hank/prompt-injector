@@ -9,9 +9,9 @@ source_fingerprint="$(
   {
     shasum -a 256 Package.swift scripts/build-app.sh
     if command -v rg >/dev/null 2>&1; then
-      rg --files macOS/PromptInjector macOS/CSQLite -g '*.swift' -g '*.json' -g '*.h' -g '*.modulemap'
+      rg --files macOS/PromptInjector macOS/CSQLite -g '*.swift' -g '*.json' -g '*.h' -g '*.modulemap' -g '*.svg' -g '*.png'
     else
-      find macOS/PromptInjector macOS/CSQLite -type f \( -name '*.swift' -o -name '*.json' -o -name '*.h' -o -name '*.modulemap' \)
+      find macOS/PromptInjector macOS/CSQLite -type f \( -name '*.swift' -o -name '*.json' -o -name '*.h' -o -name '*.modulemap' -o -name '*.svg' -o -name '*.png' \)
     fi | LC_ALL=C sort | while IFS= read -r source_file; do shasum -a 256 "$source_file"; done
   } | shasum -a 256 | awk '{print $1}'
 )"
@@ -22,6 +22,16 @@ mkdir -p "$app_dir/Contents/MacOS" "$app_dir/Contents/Resources"
 cp "$bin_dir/PromptInjector" "$app_dir/Contents/MacOS/PromptInjector"
 rm -rf "$app_dir/Contents/Resources/PromptInjector_PromptInjector.bundle" "$app_dir/Contents/MacOS/PromptInjector_PromptInjector.bundle"
 cp "$bin_dir/PromptInjector_PromptInjector.bundle/prompts.json" "$app_dir/Contents/Resources/"
+rm -rf "$app_dir/Contents/Resources/Design"
+cp -R "$bin_dir/PromptInjector_PromptInjector.bundle/Design" "$app_dir/Contents/Resources/Design"
+iconset="$PWD/build/AppIcon.iconset"
+mkdir -p "$iconset"
+for size in 16 32 128 256 512; do
+  sips -z "$size" "$size" "$app_dir/Contents/Resources/Design/AppIcon.png" --out "$iconset/icon_${size}x${size}.png" >/dev/null
+  double=$((size * 2))
+  sips -z "$double" "$double" "$app_dir/Contents/Resources/Design/AppIcon.png" --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null
+done
+iconutil -c icns "$iconset" -o "$app_dir/Contents/Resources/AppIcon.icns"
 cat > "$app_dir/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -31,8 +41,9 @@ cat > "$app_dir/Contents/Info.plist" <<'PLIST'
 <key>CFBundleDisplayName</key><string>Prompt Injector</string>
 <key>CFBundleExecutable</key><string>PromptInjector</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.1.0</string>
-<key>CFBundleVersion</key><string>1</string>
+<key>CFBundleShortVersionString</key><string>0.2.0</string>
+<key>CFBundleVersion</key><string>2</string>
+<key>CFBundleIconFile</key><string>AppIcon</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
@@ -58,7 +69,7 @@ codesign --verify --strict "$app_dir"
 project_app="$PWD/build/Prompt Injector.app"
 mkdir -p "$PWD/build"
 cat > "$PWD/build/build-info.json" <<META
-{"version":"0.1.0","buildID":"$build_id","sourceFingerprint":"$source_fingerprint","revision":"$revision"}
+{"version":"0.2.0","buildID":"$build_id","sourceFingerprint":"$source_fingerprint","revision":"$revision"}
 META
 if [ "$app_dir" != "$project_app" ]; then
   if [ -d "$project_app" ] && [ ! -L "$project_app" ]; then

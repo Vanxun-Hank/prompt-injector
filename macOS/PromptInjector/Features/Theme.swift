@@ -1,12 +1,12 @@
 import AppKit
 
 enum Theme {
-    static let radius: CGFloat = 26
-    static let text = NSColor(calibratedWhite: 0.94, alpha: 1)
-    static let secondary = NSColor(calibratedWhite: 0.66, alpha: 1)
-    static let tertiary = NSColor(calibratedWhite: 0.58, alpha: 1)
+    static let radius: CGFloat = 24
+    static let text = NSColor(srgbRed: 244/255, green: 244/255, blue: 242/255, alpha: 1)
+    static let secondary = NSColor(srgbRed: 168/255, green: 168/255, blue: 164/255, alpha: 1)
+    static let tertiary = NSColor(srgbRed: 146/255, green: 146/255, blue: 143/255, alpha: 1)
     static let accent = NSColor(calibratedWhite: 0.76, alpha: 1)
-    static let error = NSColor(calibratedRed: 1, green: 0.68, blue: 0.62, alpha: 1)
+    static let error = hex(0xFFAA9D)
     static func label(_ text: String = "", size: CGFloat = 13, weight: NSFont.Weight = .regular, color: NSColor = Theme.text) -> NSTextField {
         let label = NSTextField(labelWithString: text)
         label.font = .systemFont(ofSize: size, weight: weight)
@@ -19,10 +19,15 @@ enum Theme {
 }
 
 final class ActionButton: NSButton {
-    var primary = false
+    var primary = false { didSet { refresh() } }
+    var outlined = false { didSet { refresh() } }
+    var selectedStyle = false { didSet { refresh() } }
+    var ink: NSColor? { didSet { refresh() } }
+    var onPress: (() -> Void)? { didSet { if onPress != nil { target = self; action = #selector(press) } } }
+    @objc private func press() { onPress?() }
     private var hovered = false
     private var tracking: NSTrackingArea?
-    convenience init(title: String, symbol: String? = nil, primary: Bool = false, target: AnyObject?, action: Selector) {
+    convenience init(title: String, symbol: String? = nil, primary: Bool = false, target: AnyObject?, action: Selector?) {
         self.init(frame: .zero)
         self.title = title
         self.primary = primary
@@ -33,12 +38,13 @@ final class ActionButton: NSButton {
         font = .systemFont(ofSize: 13, weight: .medium)
         focusRingType = .exterior
         if let symbol {
-            image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
+            let assets = ["doc.on.doc": "Copy", "arrow.up.right": "Insert", "chevron.left": "Back", "xmark": "Close", "plus": "Plus", "pencil": "Edit", "checkmark": "Check", "chart.bar": "Chart", "square.grid.2x2": "Grid"]
+            image = assets[symbol].flatMap { DesignAssets.image($0) } ?? NSImage(systemSymbolName: symbol, accessibilityDescription: title)
             imagePosition = title.isEmpty ? .imageOnly : .imageLeading
             symbolConfiguration = .init(pointSize: 13, weight: .medium)
         }
         wantsLayer = true
-        layer?.cornerRadius = 8
+        layer?.cornerRadius = 10
         setAccessibilityRole(.button)
         refresh()
     }
@@ -53,12 +59,14 @@ final class ActionButton: NSButton {
     override func mouseEntered(with event: NSEvent) { hovered = true; refresh() }
     override func mouseExited(with event: NSEvent) { hovered = false; refresh() }
     private func refresh() {
-        contentTintColor = primary ? NSColor(calibratedWhite: 0.12, alpha: 1) : Theme.text
+        contentTintColor = ink ?? Theme.text
         if !isEnabled { contentTintColor = Theme.tertiary }
-        let fill: NSColor = primary && isEnabled
-            ? NSColor(calibratedWhite: isHighlighted ? 0.68 : hovered ? 1 : 0.89, alpha: 1)
-            : NSColor(white: 1, alpha: isHighlighted ? 0.14 : hovered ? 0.10 : title.isEmpty ? 0 : 0.055)
+        let fill: NSColor = (primary || selectedStyle) && isEnabled
+            ? (isHighlighted ? Theme.hex(0x353535) : hovered ? Theme.hex(0x323232) : Theme.selection)
+            : NSColor(white: 1, alpha: isHighlighted ? 0.12 : hovered ? 0.06 : 0)
         layer?.backgroundColor = fill.cgColor
+        layer?.borderWidth = outlined ? 1 : 0
+        layer?.borderColor = Theme.border.cgColor
     }
 }
 
@@ -105,8 +113,8 @@ class MaterialSurface: NSView {
     }
     func applyAccessibilityAppearance(reduceTransparency: Bool, increaseContrast: Bool) {
         material.isHidden = reduceTransparency
-        tint.layer?.backgroundColor = NSColor(calibratedRed: 0.113, green: 0.109, blue: 0.108, alpha: reduceTransparency ? 1 : 0.78).cgColor
-        outline.layer?.borderColor = NSColor(white: 1, alpha: increaseContrast ? 0.45 : 0.22).cgColor
+        tint.layer?.backgroundColor = Theme.shell.cgColor
+        outline.layer?.borderColor = (increaseContrast ? Theme.hex(0x727272) : Theme.hex(0x3C3C3C)).cgColor
     }
     override func layout() {
         super.layout()

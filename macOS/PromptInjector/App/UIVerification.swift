@@ -64,6 +64,7 @@ extension AppDelegate {
                 v.table.selectRowIndexes(IndexSet(integer: 2), byExtendingSelection: false)
                 await key(36)
                 check(name + "/return-enters-list", v.navigation.page == .entries("debugging"))
+                check(name + "/list-header-separated", v.listScroll.frame.maxY <= v.intro.frame.minY)
                 await settle(); await capture(name + "-list")
                 v.table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
                 await key(125)
@@ -100,7 +101,7 @@ extension AppDelegate {
             v.navigate(to: .entries("debugging")); v.navigate(to: .detail("debugging", "debug-root-cause")); v.navigate(to: .entries("debugging")); v.navigate(to: .detail("debugging", "debug-root-cause"))
             await settle()
             check("page-motion/rapid-navigation-preserves-state", v.currentEntry?.id == "debug-root-cause" && v.navigation.page == .detail("debugging", "debug-root-cause"))
-            check("page-motion/snapshot-cleaned", !v.pageTransition.hasSnapshot && v.contentHost.subviews.count == 2)
+            check("page-motion/snapshot-cleaned", !v.pageTransition.hasSnapshot && v.contentHost.subviews.count == 3)
             check("page-motion/chrome-stays-still", window.frame == pageFrame && v.header.frame == headerFrame && v.footer.frame == footerFrame)
             v.pageTransition.reduceMotion = { true }
             v.goBack()
@@ -129,9 +130,10 @@ extension AppDelegate {
                 }
                 pasteboard.writeObjects(items)
             }
-            v.detailScroll.contentView.scroll(to: NSPoint(x: 0, y: 120)); v.remember()
+            window.setContentSize(NSSize(width: 360, height: 300)); v.layoutSubtreeIfNeeded()
+            v.detailDocument.bodyScroll.contentView.scroll(to: NSPoint(x: 0, y: 50)); v.remember()
             v.goBack(); await ready(); v.navigate(to: .detail("debugging", "debug-root-cause"), animate: false); await ready()
-            check("navigation/detail-scroll-restored", abs(v.detailScroll.contentView.bounds.origin.y - 120) < 2)
+            check("navigation/detail-scroll-restored", abs(v.detailDocument.bodyScroll.contentView.bounds.origin.y - 50) < 2)
             v.applyAccessibilityAppearance(reduceTransparency: true, increaseContrast: false)
             check("accessibility/reduced-transparency", v.material.isHidden && v.tint.layer?.backgroundColor?.alpha == 1)
             v.updateAccessibilityAppearance()
@@ -153,6 +155,9 @@ extension AppDelegate {
                 layout.ensureLayout(for: container)
                 check("layout/long-content-no-horizontal-overflow", layout.usedRect(for: container).maxX <= container.containerSize.width + 1)
             }
+            if let container = stress.detailDocument.heading.textContainer, let layout = stress.detailDocument.heading.layoutManager {
+                check("layout/long-title-contained", layout.usedRect(for: container).height <= stress.detailDocument.heading.bounds.height)
+            }
             window.contentView = v
             let testService = InjectionService()
             do { try await testService.insert("UI verification", hide: {}); check("insertion/invalid-request-rejected", false) }
@@ -163,10 +168,22 @@ extension AppDelegate {
             v.navigate(to: .detail("debugging", "debug-root-cause"), animate: false)
             await ready()
             v.showFeedback("需要辅助功能权限。", error: true, permission: true, persist: true)
+            check("error/permission-disables-insert-preserves-copy", !v.insertButton.isEnabled && v.copyButton.isEnabled)
             await settle(); await capture("minimum-permission-error")
+            v.setInsertionFailure(.targetLost)
             v.showFeedback("原输入框已失效，请重新唤起。", error: true, persist: true)
+            check("error/target-disables-insert-preserves-copy", !v.insertButton.isEnabled && v.copyButton.isEnabled)
             await settle(); await capture("minimum-target-error")
             check("error/actions-remain-visible", !v.copyButton.isHidden && v.copyButton.frame.minY >= 0 && !v.insertButton.isHidden)
+            let afterErrorInsert = v.onInsert
+            var insertedWhileBlocked = false
+            v.onInsert = { _ in insertedWhileBlocked = true }
+            await key(36, [.command])
+            check("keyboard/blocked-command-return-no-route", !insertedWhileBlocked)
+            v.setInsertionFailure(nil)
+            await key(36, [.command])
+            check("keyboard/recovered-command-return-routes", insertedWhileBlocked)
+            v.onInsert = afterErrorInsert
             let visible = NSScreen.main?.visibleFrame ?? original
             let requestedFrame = NSRect(x: visible.midX - 340, y: visible.midY - 280, width: 680, height: 560)
             window.setFrame(requestedFrame, display: true)
@@ -206,6 +223,8 @@ extension AppDelegate {
             v.navigate(to: .categories, animate: false)
             await ready()
             backdrop.orderOut(nil)
+            let managementChecks = await verifyManagement(output: output)
+            checks.append(contentsOf: managementChecks)
             let report: [String: Any] = ["buildID": BuildIdentity.current.buildID, "sourceFingerprint": BuildIdentity.current.sourceFingerprint, "sessionID": DiagnosticLog.shared.sessionID.uuidString, "completedAt": ISO8601DateFormatter().string(from: Date()), "checks": checks, "passed": checks.allSatisfy { $0["passed"] as? Bool == true }, "capture": "Live macOS desktop region with a controlled backdrop window", "macOS": ProcessInfo.processInfo.operatingSystemVersionString, "notVerified": ["Codex real input insertion and target loss after capture (requires app accessibility permission)", "Chinese input-source candidate selection (marked-text guard tested)", "manual edge/corner dragging", "changing global system reduced transparency setting (rendering path tested directly)"]]
             if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) {
                 try? data.write(to: URL(fileURLWithPath: output + "/report.json"))

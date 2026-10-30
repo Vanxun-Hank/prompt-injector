@@ -12,7 +12,14 @@ class SuiteReportTests(unittest.TestCase):
                  'minimum/plain-return-does-not-insert','page-motion/rapid-navigation-preserves-state',
                  'keyboard/command-return-routes-current-prompt','keyboard/detail-return-does-not-route-insertion']
         names += [f'capture/{i}' for i in range(13)]
-        names += [f'check/{i}' for i in range(67-len(names))]
+        names += ['management/save-failure-keeps-input','management/reopen-preserves-fields-and-id',
+                  'management/cancel-restores-local-draft','management/edit-stable-id-without-duplicate',
+                  'statistics/explicit-success-events-only','assets/all-figma-assets-load']
+        names += ['statistics/all-columns-fit','management/native-window-controls',
+                  'management/native-close-hides','management/native-minimize','management/native-zoom',
+                  'keyboard/blocked-command-return-no-route','keyboard/recovered-command-return-routes']
+        names += ['capture/management-'+n for n in ['library','editor','original','save-error','statistics','minimum']]
+        names += [f'check/{i}' for i in range(90-len(names))]
         return {'passed':True,'checks':[{'name':n,'passed':True} for n in names]}
     def testFailingAnimationCannotBeHiddenByTopLevelPassedFlag(self):
         report=self.valid_report()
@@ -22,4 +29,8 @@ class SuiteReportTests(unittest.TestCase):
     def testMissingCapturesOrEmptyReportNeverCountAsPass(self):
         self.assertFalse(suite.validate_ui_report({'passed':True,'checks':[]}))
         report=self.valid_report();report['checks']=[c for c in report['checks'] if not c['name'].startswith('capture/')]
+        self.assertFalse(suite.validate_ui_report(report))
+    def testMissingManagementEvidenceCannotReuseOldLauncherPass(self):
+        report=self.valid_report()
+        report['checks']=[c for c in report['checks'] if c['name']!='management/save-failure-keeps-input']
         self.assertFalse(suite.validate_ui_report(report))

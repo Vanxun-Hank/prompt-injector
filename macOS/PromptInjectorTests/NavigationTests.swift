@@ -44,4 +44,31 @@ final class NavigationTests: XCTestCase {
         let font = rendered.attribute(.font, at: text.range(of: "let value").location, effectiveRange: nil) as! NSFont
         XCTAssertTrue(font.fontDescriptor.symbolicTraits.contains(.monoSpace))
     }
+
+    @MainActor func testLongTitleDoesNotPaintBehindDetailControls() {
+        let entry = PromptEntry(id: "long", categoryID: "coding", title: String(repeating: "中文长标题与 Identifier 边界检查", count: 10), summary: "", originalExperience: "原文", source: "来源", explanation: "解释", prompt: "正文")
+        let view = DetailDocument(frame: NSRect(x: 0, y: 0, width: 326, height: 170))
+        view.setEntry(entry); view.arrange(width: 326, height: 170)
+        let container = view.heading.textContainer!
+        view.heading.layoutManager?.ensureLayout(for: container)
+        XCTAssertLessThanOrEqual(view.heading.layoutManager!.usedRect(for: container).height, view.heading.bounds.height)
+        XCTAssertGreaterThanOrEqual(view.segments.frame.minY, view.heading.frame.maxY + 8)
+    }
+
+    @MainActor func testPermissionFailureDisablesInsertionAndPreservesCopy() {
+        let view = LauncherView(library: PromptLibrary(entries: []))
+        view.showFeedback("需要辅助功能权限。", error: true, permission: true, persist: true)
+        XCTAssertFalse(view.insertButton.isEnabled)
+        XCTAssertTrue(view.copyButton.isEnabled)
+        view.showFeedback("复制失败，请重试。", error: true)
+        XCTAssertFalse(view.insertButton.isEnabled)
+        view.setInsertionFailure(nil)
+        XCTAssertTrue(view.feedback.isHidden)
+        view.showFeedback("使用记录未保存。", error: true)
+        XCTAssertTrue(view.insertButton.isEnabled)
+        view.setInsertionFailure(.targetLost)
+        XCTAssertFalse(view.insertButton.isEnabled)
+        view.setInsertionFailure(nil)
+        XCTAssertTrue(view.insertButton.isEnabled)
+    }
 }

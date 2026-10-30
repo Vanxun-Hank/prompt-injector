@@ -58,6 +58,7 @@ final class LauncherPanel: NSPanel {
         let showID = UUID()
         DiagnosticLog.shared.write(.launcherShown, operationID: showID, fields: .init(targetBundleID: application?.bundleIdentifier))
         injection.capture(application)
+        if injection.hasCapturedTarget { launcher.setInsertionFailure(nil) }
         launcher.targetName = injection.targetName
         launcher.retryFailedLoad()
         if let window {
@@ -97,10 +98,14 @@ final class LauncherPanel: NSPanel {
         guard !isInserting else { return }
         isInserting = true; launcher.insertButton.isEnabled = false
         Task { @MainActor in
-            defer { isInserting = false; launcher.insertButton.isEnabled = true }
+            defer { isInserting = false; launcher.insertButton.isEnabled = launcher.insertionFailure == nil }
             do {
                 try await injection.insert(entry.prompt, hide: { [weak self] in self?.hide(animated: false) })
+                launcher.library.recordUsage(entry, kind: .insert)
             } catch {
+                if let failure = error as? InjectionService.Failure, failure != .clipboard, failure != .shortcutHeld {
+                    launcher.setInsertionFailure(failure)
+                }
                 if let window { presentation.show(window, animated: false) }
                 NSApp.activate(ignoringOtherApps: true)
                 launcher.showFeedback(error.localizedDescription, error: true, permission: (error as? InjectionService.Failure) == .permission, persist: true)

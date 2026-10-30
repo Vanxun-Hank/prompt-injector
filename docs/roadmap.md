@@ -1,6 +1,6 @@
 # 阶段与验收
 
-当前状态（2026-10-30）：**Stage 1 在当前 macOS / Codex 普通主输入框范围验收完成**。已有 SQLite 分层存储、真实在线/断网插入不发送、未授权拒绝和复制降级、原输入框失效保护、性能基线与完整回归套件。证据与边界见 [stage1-acceptance.md](stage1-acceptance.md)；不自动开始 Stage 2。原型沿革和授权记录仍在 [prototype.md](prototype.md)。
+当前状态（2026-10-30）：**Stage 1 在当前 macOS / Codex 普通主输入框范围验收完成；用户已明确授权 Stage 2 管理页与整套 Figma UI 移植，开发版已通过内容与原生 UI 回归**。Stage 1 的 SQLite 分层存储、真实在线/断网插入不发送、未授权拒绝和复制降级、原目标失效保护与性能证据见 [stage1-acceptance.md](stage1-acceptance.md)。新版状态见下文；原型沿革和授权记录在 [prototype.md](prototype.md)。
 
 ## Stage 1 · v0.1 · 快捷调用
 
@@ -16,9 +16,9 @@
 
 不含：搜索、管理窗口、LLM、云端同步、其他应用兼容承诺。
 
-## Stage 2 · v0.2.x · 内容维护（未实现）
+## Stage 2 · v0.2.x · 内容维护（开发版已通过原生回归）
 
-详细拆分见 [stage2-plan.md](stage2-plan.md)：先完成 v0.2.0 新增闭环，再依次编辑、搜索、导出、导入和删除，每个版本独立验收和回滚。
+用户本轮明确要求将完整 Figma 管理页、浮窗与图标移植到代码，因此本次 v0.2.0 合并了手动新增、编辑、管理页标题／简述搜索和本地使用统计。数据与完整原生套件已通过；本轮未重复真实跨应用插入，保留 Stage 1 的既有验收范围。导入、导出、删除及浮窗搜索未实现。原计划与范围变更见 [stage2-plan.md](stage2-plan.md)，当前事实见 [figma-integration.md](figma-integration.md)。
 
 范围：独立管理窗口，手动新增/编辑/删除，固定分类，标题和简述搜索，JSON 导入导出。字段包括标题、简述、原文、作者/来源、解释和 Prompt。
 

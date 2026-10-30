@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage 1 regression suite. Full native UI run by default; --headless is explicitly partial."""
+"""Launcher and management regression suite; --headless is explicitly partial."""
 import argparse
 import datetime
 import json
@@ -18,9 +18,17 @@ def validate_ui_report(report):
     required = {'toggle/visible-hides', 'motion/interrupted-show-remains-visible',
                 'copy/actual-pasteboard', 'minimum/plain-return-does-not-insert',
                 'page-motion/rapid-navigation-preserves-state',
-                'keyboard/command-return-routes-current-prompt', 'keyboard/detail-return-does-not-route-insertion'}
+                'keyboard/command-return-routes-current-prompt', 'keyboard/detail-return-does-not-route-insertion',
+                'management/save-failure-keeps-input', 'management/reopen-preserves-fields-and-id',
+                'management/cancel-restores-local-draft', 'management/edit-stable-id-without-duplicate',
+                'statistics/explicit-success-events-only', 'assets/all-figma-assets-load',
+                'statistics/all-columns-fit', 'management/native-window-controls',
+                'management/native-close-hides', 'management/native-minimize', 'management/native-zoom',
+                'keyboard/blocked-command-return-no-route', 'keyboard/recovered-command-return-routes',
+                'capture/management-library', 'capture/management-editor', 'capture/management-original',
+                'capture/management-save-error', 'capture/management-statistics', 'capture/management-minimum'}
     captures = [c for c in checks if str(c.get('name', '')).startswith('capture/')]
-    return (report.get('passed') is True and len(checks) >= 67 and len(captures) == 13
+    return (report.get('passed') is True and len(checks) >= 85 and len(captures) == 19
             and required <= names and all(c.get('passed') is True for c in checks))
 
 def main():
@@ -30,7 +38,7 @@ def main():
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
     output = ROOT / 'artifacts/tests' / stamp
     output.mkdir(parents=True)
-    result = {'startedAt':stamp, 'scope':'headless-partial' if args.headless else 'stage1-full', 'steps':[], 'passed':False}
+    result = {'startedAt':stamp, 'scope':'headless-partial' if args.headless else 'native-ui-full', 'steps':[], 'passed':False}
     def save():
         (output/'summary.json').write_text(json.dumps(result, indent=2)+'\n')
     def run(name, command, timeout=180):

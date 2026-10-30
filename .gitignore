@@ -2,7 +2,9 @@
 .build/
 build/
 artifacts/
-.impeccable/
+output/
+.impeccable/*
+!.impeccable/design.json
 .DS_Store
 __pycache__/
 *.py[cod]

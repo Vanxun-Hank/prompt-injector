@@ -5,17 +5,14 @@ final class PromptRow: NSTableRowView {
     override var isEmphasized: Bool { get { true } set {} }
     override func drawBackground(in dirtyRect: NSRect) {
         if hovered && !isSelected {
-            NSColor(white: 1, alpha: 0.045).setFill()
-            NSBezierPath(roundedRect: bounds.insetBy(dx: 0, dy: 2), xRadius: 7, yRadius: 7).fill()
+            Theme.band.setFill()
+            NSBezierPath(roundedRect: bounds, xRadius: 10, yRadius: 10).fill()
         }
     }
     override func drawSelection(in dirtyRect: NSRect) {
-        NSColor(white: 1, alpha: 0.09).setFill()
-        let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 2.5), xRadius: 7, yRadius: 7)
+        Theme.selection.setFill()
+        let path = NSBezierPath(roundedRect: bounds, xRadius: 10, yRadius: 10)
         path.fill()
-        if window?.firstResponder is NSTableView {
-            Theme.accent.withAlphaComponent(0.65).setStroke(); path.lineWidth = 1; path.stroke()
-        }
     }
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -27,16 +24,15 @@ final class PromptRow: NSTableRowView {
 }
 
 final class PromptCell: NSTableCellView {
-    let icon = NSImageView()
     let title = Theme.label(size: 14, weight: .medium)
     let summary = Theme.label(size: 12, color: Theme.secondary)
     let chevron = NSImageView()
+    let count = Theme.label(size: 11, color: Theme.tertiary)
     var category = false
     override init(frame: NSRect) {
         super.init(frame: frame)
-        [icon, title, summary, chevron].forEach(addSubview)
-        icon.contentTintColor = Theme.secondary
-        chevron.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)
+        [title, summary, count, chevron].forEach(addSubview)
+        chevron.image = DesignAssets.image("Chevron")
         chevron.symbolConfiguration = .init(pointSize: 10, weight: .medium)
         chevron.contentTintColor = Theme.tertiary
         setAccessibilityElement(true)
@@ -45,14 +41,30 @@ final class PromptCell: NSTableCellView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override func layout() {
         super.layout()
-        let start: CGFloat = category ? 36 : 8
-        icon.frame = NSRect(x: 8, y: (bounds.height - 17) / 2, width: 17, height: 17)
-        chevron.frame = NSRect(x: bounds.width - 30, y: (bounds.height - 12) / 2, width: 10, height: 12)
-        title.frame = NSRect(x: start, y: category ? (bounds.height - 20) / 2 : bounds.height / 2 + 1, width: max(0, bounds.width - start - 40), height: 20)
-        summary.frame = NSRect(x: start, y: bounds.height / 2 - 20, width: max(0, bounds.width - start - 32), height: 18)
-        icon.isHidden = !category
+        let start: CGFloat = 12
+        chevron.frame = NSRect(x: bounds.width - 22, y: (bounds.height - 10) / 2, width: 6, height: 10)
+        count.frame = NSRect(x: bounds.width - 56, y: (bounds.height - 18) / 2, width: 22, height: 18)
+        count.isHidden = !category
+        title.frame = NSRect(x: start, y: category ? (bounds.height - 22) / 2 : bounds.height - 30, width: max(0, bounds.width - start - 64), height: 22)
+        summary.maximumNumberOfLines = bounds.height > 70 ? 2 : 1
+        summary.lineBreakMode = bounds.height > 70 ? .byWordWrapping : .byTruncatingTail
+        summary.cell?.wraps = bounds.height > 70
+        summary.frame = NSRect(x: start, y: bounds.height > 70 ? 8 : 12, width: max(0, bounds.width - start - 36), height: bounds.height > 70 ? 36 : 18)
         summary.isHidden = category
     }
+}
+
+final class LauncherListHeader: NSView {
+    override var isFlipped: Bool { true }
+    var left = "分类"
+    var right = ""
+    override func draw(_ dirtyRect: NSRect) {
+        let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: Theme.tertiary]
+        (left as NSString).draw(at: NSPoint(x: 0, y: 0), withAttributes: attrs)
+        let size = (right as NSString).size(withAttributes: attrs)
+        (right as NSString).draw(at: NSPoint(x: bounds.width - size.width - 20, y: 0), withAttributes: attrs)
+    }
+    override func mouseDown(with event: NSEvent) {}
 }
 
 final class PromptTable: NSTableView {
@@ -73,23 +85,27 @@ final class PromptTable: NSTableView {
     var onPermission: (() -> Void)?
     var targetName: String? { didSet { updateHeader() } }
     private(set) var currentEntry: PromptEntry?
+    private(set) var insertionFailure: InjectionService.Failure?
     let header = DragHeader()
     let breadcrumb = Theme.label("Prompt Injector", size: 13, weight: .medium)
+    let logo = LogoView(frame: .zero)
+    let intro = LauncherListHeader(frame: NSRect(x: 0, y: 0, width: 570, height: 32))
     let table = PromptTable()
     let contentHost = NSView()
     let pageTransition = PageTransition()
     let listScroll = NSScrollView()
     let detailScroll = NSScrollView()
     let detailDocument = DetailDocument()
-    var textView: NSTextView { detailDocument.promptTextView }
+    var textView: NSTextView { detailDocument.activeTextView }
     let footer = NSView()
     let hint = Theme.label(size: 11, color: Theme.secondary)
+    let dismissHint = Theme.label("esc 隐藏", size: 11, color: Theme.secondary)
     let feedback = Theme.label(size: 12)
     let separator = PassiveView()
     lazy var backButton = ActionButton(title: "", symbol: "chevron.left", target: self, action: #selector(goBack))
     lazy var closeButton = ActionButton(title: "", symbol: "xmark", target: self, action: #selector(close))
     lazy var copyButton = ActionButton(title: "", symbol: "doc.on.doc", target: self, action: #selector(copyPrompt))
-    lazy var insertButton = ActionButton(title: "", symbol: "arrow.up.right", primary: true, target: self, action: #selector(insertPrompt))
+    lazy var insertButton = ActionButton(title: "", symbol: "arrow.up.right", target: self, action: #selector(insertPrompt))
     lazy var permissionButton = ActionButton(title: "开启权限", target: self, action: #selector(openPermission))
     private var visibleEntries: [PromptSummary] = []
     private var categories: [PromptCategory] = []
@@ -98,11 +114,13 @@ final class PromptTable: NSTableView {
     private var loadFailed = false
     private var feedbackToken = 0
     private var hasError = false
+    private var selectionToRestore: String?
+    private var compactRows = false
 
     init(library: PromptLibrary) {
         self.library = library
         super.init(frame: NSRect(x: 0, y: 0, width: 620, height: 520))
-        header.addSubview(backButton); header.addSubview(breadcrumb); header.addSubview(closeButton)
+        header.addSubview(backButton); header.addSubview(logo); header.addSubview(breadcrumb); header.addSubview(closeButton)
         backButton.toolTip = "返回（⇧Return / Esc）"; backButton.setAccessibilityLabel("返回上一级")
         closeButton.toolTip = "关闭浮窗"; closeButton.setAccessibilityLabel("关闭浮窗")
         insertButton.toolTip = "插入原输入框（⌘Return）"; insertButton.setAccessibilityLabel("插入 Prompt")
@@ -115,7 +133,7 @@ final class PromptTable: NSTableView {
         table.backgroundColor = .clear
         table.selectionHighlightStyle = .regular
         table.focusRingType = .none
-        table.intercellSpacing = NSSize(width: 0, height: 0)
+        table.intercellSpacing = NSSize(width: 0, height: 8)
         table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
         table.dataSource = self; table.delegate = self
         table.target = self; table.action = #selector(rowClicked)
@@ -128,56 +146,70 @@ final class PromptTable: NSTableView {
         listScroll.documentView = table
         detailScroll.drawsBackground = false
         detailScroll.automaticallyAdjustsContentInsets = false
-        detailScroll.hasVerticalScroller = true
+        detailScroll.hasVerticalScroller = false
         detailScroll.scrollerStyle = .overlay
         detailScroll.documentView = detailDocument
-        [hint, feedback, copyButton, insertButton, permissionButton].forEach(footer.addSubview)
+        [hint, dismissHint, feedback, copyButton, insertButton, permissionButton].forEach(footer.addSubview)
+        dismissHint.alignment = .right
+        copyButton.outlined = true; insertButton.outlined = true
         feedback.maximumNumberOfLines = 2
         feedback.lineBreakMode = .byWordWrapping
         separator.wantsLayer = true
         separator.layer?.backgroundColor = NSColor(white: 1, alpha: 0.08).cgColor
         contentHost.wantsLayer = true
         contentHost.layer?.masksToBounds = true
-        [listScroll, detailScroll].forEach(contentHost.addSubview)
+        [listScroll, detailScroll, intro].forEach(contentHost.addSubview)
         [header, contentHost, separator, footer].forEach(addSubview)
         finishOutline()
+        NotificationCenter.default.addObserver(self, selector: #selector(libraryChanged(_:)), name: .promptLibraryChanged, object: library)
         showPage()
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    deinit { NotificationCenter.default.removeObserver(self) }
 
     override func layout() {
         super.layout()
         let w = bounds.width, h = bounds.height
-        header.frame = NSRect(x: 16, y: h - 54, width: w - 32, height: 42)
-        backButton.frame = NSRect(x: 0, y: 5, width: 30, height: 30)
-        closeButton.frame = NSRect(x: header.bounds.width - 30, y: 5, width: 30, height: 30)
-        let titleX: CGFloat = navigation.page == .categories ? 8 : 38
-        breadcrumb.frame = NSRect(x: titleX, y: 12, width: max(60, header.bounds.width - titleX - 46), height: 20)
-        let bottom: CGFloat = hasError ? 112 : 76
-        let content = NSRect(x: 16, y: bottom, width: w - 32, height: max(100, h - bottom - 62))
+        if compactRows != (w < 450) {
+            compactRows = w < 450
+            table.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<numberOfRows(in: table)))
+        }
+        let compact = w < 450, edge: CGFloat = compact ? 16 : 24
+        let hh: CGFloat = compact ? 52 : 56, fh: CGFloat = hasError ? 104 : compact ? 56 : 60
+        header.frame = NSRect(x: 1, y: h - hh - 1, width: w - 2, height: hh)
+        backButton.frame = NSRect(x: edge, y: (hh - 32) / 2, width: 32, height: 32)
+        logo.frame = NSRect(x: edge, y: (hh - 24) / 2, width: 24, height: 24)
+        closeButton.frame = NSRect(x: header.bounds.width - (compact ? 12 : 16) - 32, y: (hh - 32) / 2, width: 32, height: 32)
+        let titleX = edge + (navigation.page == .categories ? 34 : 42)
+        breadcrumb.frame = NSRect(x: titleX, y: (hh - 22) / 2, width: max(60, header.bounds.width - titleX - 48), height: 22)
+        let gap: CGFloat = compact ? 8 : 12
+        let content = NSRect(x: edge + 1, y: fh + 2 + gap, width: w - 2 * edge - 2, height: max(80, h - hh - fh - 3 - 2 * gap))
         if contentHost.bounds.size != content.size { pageTransition.cancel() }
         contentHost.frame = content
-        listScroll.frame = contentHost.bounds
-        detailScroll.frame = NSRect(x: 8, y: 0, width: w - 48, height: content.height)
+        intro.frame = NSRect(x: 0, y: contentHost.bounds.height - 32, width: contentHost.bounds.width, height: 32)
+        listScroll.frame = NSRect(x: 0, y: 0, width: contentHost.bounds.width, height: max(40, contentHost.bounds.height - 32))
+        detailScroll.frame = contentHost.bounds
         table.setFrameSize(NSSize(width: listScroll.contentSize.width, height: table.frame.height))
         table.tableColumns.first?.width = listScroll.contentSize.width
-        detailDocument.arrange(width: detailScroll.contentSize.width)
-        separator.frame = NSRect(x: 24, y: bottom - 12, width: w - 48, height: 1)
-        footer.frame = NSRect(x: 24, y: 12, width: w - 48, height: hasError ? 80 : 44)
+        detailDocument.arrange(width: detailScroll.contentSize.width, height: detailScroll.contentSize.height)
+        separator.frame = NSRect(x: 1, y: fh + 1, width: w - 2, height: 1)
+        footer.frame = NSRect(x: edge + 1, y: 1, width: w - 2 * edge - 2, height: fh)
         let fw = footer.bounds.width
-        insertButton.frame = NSRect(x: fw - 34, y: 5, width: 34, height: 34)
-        copyButton.frame = NSRect(x: fw - 76, y: 5, width: 34, height: 34)
+        insertButton.frame = NSRect(x: fw - 40, y: 10, width: 40, height: 40)
+        copyButton.frame = NSRect(x: fw - 90, y: 10, width: 40, height: 40)
         permissionButton.frame = NSRect(x: 0, y: 5, width: 78, height: 34)
         let available = currentEntry == nil ? fw : fw - 92
-        hint.frame = NSRect(x: 0, y: 13, width: max(80, available), height: 18)
-        feedback.frame = hasError ? NSRect(x: 0, y: 44, width: fw, height: 34) : NSRect(x: 0, y: 13, width: max(80, available), height: 18)
+        hint.frame = NSRect(x: 0, y: (min(60, fh) - 18) / 2, width: max(80, available), height: 18)
+        dismissHint.frame = NSRect(x: fw - 72, y: hint.frame.minY, width: 72, height: 18)
+        dismissHint.isHidden = navigation.page != .categories || hasError
+        feedback.frame = hasError ? NSRect(x: 0, y: 60, width: fw, height: 36) : hint.frame
         window?.invalidateCursorRects(for: self)
     }
 
     func numberOfRows(in tableView: NSTableView) -> Int {
         navigation.page == .categories ? categories.count : visibleEntries.count
     }
-    func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat { navigation.page == .categories ? 44 : 64 }
+    func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat { navigation.page == .categories ? 44 : bounds.width < 450 ? 80 : 64 }
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? { PromptRow() }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         guard row >= 0, row < numberOfRows(in: tableView) else { return nil }
@@ -186,8 +218,8 @@ final class PromptTable: NSTableView {
             let category = categories[row]
             cell.category = true
             cell.title.stringValue = category.name
-            cell.icon.image = NSImage(systemSymbolName: category.symbol, accessibilityDescription: nil)
-            cell.icon.symbolConfiguration = .init(pointSize: 15, weight: .regular)
+            cell.count.stringValue = String(category.entryCount)
+            Theme.glow(cell.title, color: Theme.categoryColor(category.id))
             cell.setAccessibilityLabel(category.name)
         } else {
             let entry = visibleEntries[row]
@@ -201,7 +233,7 @@ final class PromptTable: NSTableView {
     @objc private func rowClicked() { if table.clickedRow >= 0 { openSelection() } }
     func remember() {
         guard !isLoading else { return }
-        navigation.remember(selection: max(0, table.selectedRow), scrollY: currentEntry == nil ? listScroll.contentView.bounds.origin.y : detailScroll.contentView.bounds.origin.y)
+        navigation.remember(selection: max(0, table.selectedRow), scrollY: currentEntry == nil ? listScroll.contentView.bounds.origin.y : detailDocument.bodyScroll.contentView.bounds.origin.y)
     }
     func navigate(to page: LauncherPage, animate: Bool = true) {
         guard page != navigation.page else { return }
@@ -272,6 +304,7 @@ final class PromptTable: NSTableView {
     func retryFailedLoad() { if loadFailed && !isLoading { showPage() } }
     private func renderPage() {
         let detail = currentEntry != nil
+        intro.isHidden = detail
         detailScroll.isHidden = !detail; listScroll.isHidden = detail
         insertButton.isHidden = !detail; copyButton.isHidden = !detail
         backButton.isHidden = navigation.page == .categories
@@ -282,20 +315,33 @@ final class PromptTable: NSTableView {
         } else {
             table.reloadData()
             let count = numberOfRows(in: table)
-            if count > 0 { table.selectRowIndexes(IndexSet(integer: min(navigation.restored.selection, count - 1)), byExtendingSelection: false) }
+            if count > 0 {
+                let restored = selectionToRestore.flatMap { id in visibleEntries.firstIndex { $0.id == id } } ?? min(navigation.restored.selection, count - 1)
+                table.selectRowIndexes(IndexSet(integer: restored), byExtendingSelection: false)
+            }
+            selectionToRestore = nil
             if count == 0 { showFeedback("暂无条目", error: false, persist: true) }
         }
         needsLayout = true; layoutSubtreeIfNeeded()
-        let scroll = detail ? detailScroll : listScroll
+        let scroll = detail ? detailDocument.bodyScroll : listScroll
         scroll.contentView.scroll(to: NSPoint(x: 0, y: navigation.restored.scrollY))
         scroll.reflectScrolledClipView(scroll.contentView)
         window?.makeFirstResponder(detail ? textView : table)
     }
     private func updateHeader() {
         switch navigation.page {
-        case .categories: breadcrumb.stringValue = "Prompt Injector"
-        case .entries(let id), .detail(let id, _): breadcrumb.stringValue = categories.first { $0.id == id }?.name ?? "Prompt"
+        case .categories:
+            breadcrumb.font = .systemFont(ofSize: 15, weight: .semibold)
+            breadcrumb.attributedStringValue = NSAttributedString(string: "Prompt Injector", attributes: [.font: breadcrumb.font!, .foregroundColor: Theme.text])
+            breadcrumb.layer?.shadowOpacity = 0
+            intro.left = "分类"; intro.right = "\(categories.reduce(0) { $0 + $1.entryCount }) 条内容"
+        case .entries(let id), .detail(let id, _):
+            breadcrumb.stringValue = Theme.categoryName(id); breadcrumb.font = .systemFont(ofSize: 14, weight: .medium)
+            Theme.glow(breadcrumb, color: Theme.categoryColor(id))
+            intro.left = "\(visibleEntries.count) 条内容"; intro.right = ""
         }
+        logo.isHidden = navigation.page != .categories
+        intro.needsDisplay = true
         insertButton.toolTip = targetName.map { "插入到\($0)（⌘Return）" } ?? "插入原输入框（⌘Return）"
     }
     @objc func copyPrompt() {
@@ -303,15 +349,40 @@ final class PromptTable: NSTableView {
         NSPasteboard.general.clearContents()
         if NSPasteboard.general.setString(entry.prompt, forType: .string) {
             DiagnosticLog.shared.write(.copySucceeded, fields: .init(promptUTF16Count: (entry.prompt as NSString).length))
+            library.recordUsage(entry, kind: .copy) { [weak self] result in
+                if case .failure = result { self?.showFeedback("复制成功，但使用记录未保存。", error: true) }
+            }
             showFeedback("已复制", error: false)
         } else {
             DiagnosticLog.shared.write(.copyFailed, level: .error)
             showFeedback("复制失败，请重试。", error: true)
         }
     }
-    @objc func insertPrompt() { if let entry = currentEntry { onInsert?(entry) } }
+    func setInsertionFailure(_ failure: InjectionService.Failure?) {
+        if failure == nil, insertionFailure != nil {
+            feedbackToken += 1
+            feedback.isHidden = true; permissionButton.isHidden = true; hint.isHidden = false
+            hasError = false; needsLayout = true
+        }
+        insertionFailure = failure; insertButton.isEnabled = failure == nil
+    }
+    @objc func insertPrompt() {
+        guard insertionFailure == nil else {
+            DiagnosticLog.shared.write(.insertionBlocked, level: .warning, fields: .init(stage: "ui", errorCode: insertionFailure?.rawValue))
+            return
+        }
+        if let entry = currentEntry { onInsert?(entry) }
+    }
+    @objc private func libraryChanged(_ notification: Notification) {
+        selectionToRestore = visibleEntries.indices.contains(table.selectedRow) ? visibleEntries[table.selectedRow].id : nil
+        remember()
+        if case .detail(_, let id) = navigation.page, id == notification.userInfo?["id"] as? String,
+           let category = notification.userInfo?["category"] as? String { navigation.open(.detail(category, id)) }
+        showPage()
+    }
     @objc private func openPermission() { onPermission?() }
     func showFeedback(_ message: String, error: Bool, permission: Bool = false, persist: Bool = false) {
+        if permission { setInsertionFailure(.permission) }
         feedbackToken += 1; let token = feedbackToken
         hasError = error
         feedback.stringValue = message; feedback.toolTip = message

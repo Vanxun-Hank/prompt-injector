@@ -4,12 +4,16 @@ import Carbon
 @MainActor final class AppDelegate: NSObject, NSApplicationDelegate {
     var verificationDatabaseDirectory: URL?
     var controller: LauncherWindowController?
+    var management: ManagementWindowController?
     private var status: NSStatusItem?
     private var hotKey: EventHotKeyRef?
     private var hotKeyHandler: EventHandlerRef?
     private var lastExternalApp: NSRunningApplication?
     private var shortcutItems: [NSMenuItem] = []
     private var openItem: NSMenuItem?
+    private var terminationReady = false
+    private var terminationInProgress = false
+    private var applicationLibrary: PromptLibrary?
     private var selectedShortcut: Int { ShortcutPreference.resolve(UserDefaults.standard.integer(forKey: "launcher.shortcut.v1"), optionCount: shortcutOptions.count) }
     private let shortcutOptions: [(title: String, carbon: UInt32, cocoa: NSEvent.ModifierFlags)] = [
         ("⇧⌥Space", UInt32(shiftKey | optionKey), [.shift, .option]),
@@ -19,6 +23,14 @@ import Carbon
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         DiagnosticLog.shared.write(.appStarted)
+        if let index = CommandLine.arguments.firstIndex(of: "--verify-termination"), CommandLine.arguments.count > index + 1 {
+            // Headless process regression: no window, menu, shortcut registration or external target capture.
+            let library = PromptLibrary(repository: SQLitePromptRepository(url: URL(fileURLWithPath: CommandLine.arguments[index + 1])))
+            applicationLibrary = library
+            if let entry = try? PromptSeed.entries().first { library.recordUsage(entry, kind: .copy) }
+            Task { @MainActor in NSApp.terminate(nil) }
+            return
+        }
         let storedShortcut = UserDefaults.standard.integer(forKey: "launcher.shortcut.v1")
         if storedShortcut != selectedShortcut {
             DiagnosticLog.shared.write(.preferenceInvalid, level: .warning, fields: .init(shortcutIndex: storedShortcut, preference: "shortcut"))
@@ -34,10 +46,12 @@ import Carbon
             verificationDatabaseDirectory = url.deletingLastPathComponent()
             library = PromptLibrary(repository: SQLitePromptRepository(url: url))
         } else { library = PromptLibrary() }
+        applicationLibrary = library
         controller = LauncherWindowController(library: library)
         setupMenu()
         if !CommandLine.arguments.contains("--verify-ui") { registerShortcut() }
-        if !CommandLine.arguments.contains("--start-hidden") {
+        if CommandLine.arguments.contains("--manage") { openManagement() }
+        else if !CommandLine.arguments.contains("--start-hidden") {
             controller?.show(capturing: CommandLine.arguments.contains("--verify-ui") ? nil : externalTarget())
         }
         if CommandLine.arguments.contains("--verify-ui") { runVerification() }
@@ -59,17 +73,52 @@ import Carbon
         else { controller.show(capturing: externalTarget()) }
     }
     @objc private func quit() { NSApp.terminate(nil) }
+    @objc func openManagement() {
+        guard let controller else { return }
+        if controller.isPresented { controller.hide() }
+        if management == nil { management = ManagementWindowController(library: controller.launcher.library) }
+        management?.show()
+    }
+    @objc private func openStatistics() { openManagement(); management?.showStatistics() }
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if terminationReady { return .terminateNow }
+        if terminationInProgress { return .terminateCancel }
+        guard let library = applicationLibrary else { return .terminateNow }
+        terminationInProgress = true
+        DiagnosticLog.shared.write(.appStopping, fields: .init(stage: "drain-library"))
+        let finish: (Bool) -> Void = { [weak self] saved in
+            guard let self else { return }
+            guard saved else { self.terminationInProgress = false; self.management?.show(); return }
+            library.flush { [weak self] in
+                self?.terminationReady = true; self?.terminationInProgress = false
+                NSApp.terminate(nil)
+            }
+        }
+        if let management, management.needsTerminationSave {
+            management.prepareForTermination(finish)
+        } else { finish(true) }
+        // Unwind the current task before durable writes finish; terminateLater's modal loop blocks their main-queue callbacks.
+        return .terminateCancel
+    }
     @objc private func requestAccessibility() { AccessibilityAccess.request() }
     func applicationDidBecomeActive(_ notification: Notification) { AccessibilityAccess.refresh() }
     private func setupMenu() {
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        status?.button?.image = NSImage(systemSymbolName: "text.badge.plus", accessibilityDescription: "Prompt Injector")
+        let menuIcon = DesignAssets.image("MenuBar")
+        menuIcon?.size = NSSize(width: 18, height: 18)
+        status?.button?.image = menuIcon
+        status?.button?.setAccessibilityLabel("Prompt Injector")
         status?.button?.toolTip = "Prompt Injector"
         let menu = NSMenu()
         let open = NSMenuItem(title: "显示 / 隐藏 Prompt Injector", action: #selector(toggle), keyEquivalent: " ")
         open.keyEquivalentModifierMask = shortcutOptions[min(selectedShortcut, shortcutOptions.count - 1)].cocoa
         open.target = self; menu.addItem(open)
         openItem = open
+        let manage = NSMenuItem(title: "管理内容…", action: #selector(openManagement), keyEquivalent: ",")
+        manage.target = self; menu.addItem(manage)
+        let statistics = NSMenuItem(title: "使用统计", action: #selector(openStatistics), keyEquivalent: "")
+        statistics.target = self; menu.addItem(statistics)
+        menu.addItem(.separator())
         let shortcuts = NSMenu(title: "唤醒快捷键")
         for (index, option) in shortcutOptions.enumerated() {
             let item = NSMenuItem(title: option.title, action: #selector(changeShortcut(_:)), keyEquivalent: "")
@@ -88,9 +137,17 @@ import Carbon
         let appItem = NSMenuItem(); appItem.submenu = menu.copy() as? NSMenu
         main.addItem(appItem)
         let edit = NSMenu(title: "编辑")
+        edit.addItem(withTitle: "撤销", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: "重做", action: Selector(("redo:")), keyEquivalent: "z"); redo.keyEquivalentModifierMask = [.command, .shift]
+        edit.addItem(.separator())
+        edit.addItem(withTitle: "剪切", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         edit.addItem(withTitle: "复制", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "粘贴", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         edit.addItem(withTitle: "全选", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         let editItem = NSMenuItem(); editItem.submenu = edit; main.addItem(editItem)
+        let windows = NSMenu(title: "窗口")
+        windows.addItem(withTitle: "关闭窗口", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        let windowItem = NSMenuItem(); windowItem.submenu = windows; main.addItem(windowItem)
         NSApp.mainMenu = main
     }
     private func registerShortcut() {

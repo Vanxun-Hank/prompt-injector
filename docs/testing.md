@@ -1,4 +1,4 @@
-# Stage 1 回归测试套件
+# 客户端回归测试套件
 
 每次代码或行为修改、每个 Stage 交付前，运行同一个入口：
 
@@ -24,6 +24,12 @@ python3 scripts/test-suite.py
 | 日志 | `DiagnosticLogTests`：跨操作历史、轮转、并发、写入失败隔离；Python 查看工具过滤与不完整行 |
 | 原生窗口 | `UIVerification.swift`：三级页面的三种尺寸、复制、键盘/IME 保护、滚动、长内容、固定操作栏、⌘Return 传递当前完整 Prompt/普通 Return 不插入、几何恢复、窗口及页面动画、中断、减少动态效果 |
 | 套件自身 | `test_suite_report.py`：顶层 passed 不能掩盖动画失败，缺失截图/空报告不能算通过 |
+| 管理与持久化 | `ManagementTests`：创建／重试／重开、编辑分类与过期覆盖、失败事务保留草稿、字面量搜索、事件计次、主库 schema v1 兼容、提交后通知和退出排空 |
+| 管理原生窗口 | `ManagementVerification.swift`：新增／编辑、保存失败输入保留、取消恢复草稿、搜索、复制、真实计次及最小尺寸；新增 6 张管理截图，整套要求 19 张截图和至少 85 项检查 |
+
+管理原生验证还检查三枚系统窗口按钮，并实际执行最小化／还原、放大和关闭；统计用真实列矩形验证最右列可见。插入错误状态同时检查按钮禁用与 ⌘Return 不路由，测试重置有效捕获后再恢复路由；这不替代真实外部输入框验收。
+
+进程级退出回归以临时 SQLite 调用 `--verify-termination`，不创建窗口、不注册快捷键、不捕获外部目标；验证 MainActor Task 中退出不死锁，且排队的使用记录已落盘。
 
 单元测试使用临时数据库，UI 验证也使用独立临时 SQLite，不读取或覆盖用户资料库。UI 模式不注册全局快捷键、不捕获外部目标。真实应用保存路径为 `~/Library/Application Support/Prompt Injector/library.sqlite3`，只在首次初始化时读取打包 JSON；现有库出现错误不会删除重建或自动回退 JSON。
 
@@ -44,3 +50,5 @@ python3 scripts/test-suite.py
 2026-10-30 最终基线：36 Swift + 6 Python + 69 原生检查通过，本地该轮 `artifacts/tests/` 报告（不公开）。普通主输入框在线/断网、真实权限拒绝与恢复、复制降级、原目标失效已完成手工系统验收。question 框与第 5 项的拓展系统场景仍按边界单独标注，不假设兼容。
 
 公开仓库不附原始运行报告、会话日志和私人数据库。历史验收摘要见 [stage1-acceptance.md](stage1-acceptance.md)；执行套件会在本机重新生成证据。发布与回滚约定见 [development.md](development.md)。
+
+2026-10-30 新版 UI 最终回归：48 Swift + 7 Python + 103 原生检查、19 张有效截图通过；原生红黄绿按钮实际最小化／还原、放大与关闭通过。构建 20261030T152933Z，报告见本地 artifacts/tests/20261030T152927.116265Z/summary.json。本轮未重复真实 Codex 跨应用插入。

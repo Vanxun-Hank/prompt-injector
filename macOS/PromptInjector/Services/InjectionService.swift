@@ -9,6 +9,7 @@ import ApplicationServices
     private var capturedText: String?
     private var capturedRange: NSRange?
     private var captureFailure: Failure?
+    var hasCapturedTarget: Bool { element != nil && captureFailure == nil }
     private var captureID: UUID?
     private var operationID: UUID?
     private var stage = "capture"

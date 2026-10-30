@@ -15,7 +15,8 @@ macOS/
 │   │   ├── AppDelegate.swift         # 菜单栏、全局快捷键、外部应用记录
 │   │   ├── LauncherWindow.swift      # 窗口、键盘路由、几何与插入协调
 │   │   ├── PanelPresentation.swift   # 浮窗出现/隐藏与中断控制
-│   │   └── UIVerification.swift      # 原生窗口检查与截图入口
+│   │   ├── UIVerification.swift      # 原生窗口检查与截图入口
+│   │   └── ManagementVerification.swift # 隔离管理数据与原生操作检查
 │   ├── Domain/Library.swift          # 模型、导航状态与异步仓储入口
 │   ├── Domain/TargetCapabilities.swift # 可编辑能力与插入方式选择
 │   ├── Domain/PreferencesValidation.swift # 快捷键索引与窗口几何验证
@@ -23,6 +24,10 @@ macOS/
 │   │   ├── Theme.swift               # 材质、按钮、拖动与边缘缩放
 │   │   ├── LauncherView.swift        # 分类、列表、页头与底部操作
 │   │   ├── DetailDocument.swift      # 单容器分段详情、原生文本选择
+│   │   ├── DesignUI.swift            # Figma 资源、面板、分段控件与文本
+│   │   ├── ManagementWindow.swift    # 管理导航、列表、预览与保存协调
+│   │   ├── PromptEditor.swift        # 独立字段与本地草稿编辑
+│   │   ├── UsageDashboard.swift      # 真实本地计次、趋势与排行
 │   │   └── PageTransition.swift      # 内容视口方向性过渡与快照清理
 │   ├── Services/
 │   │   ├── SQLitePromptRepository.swift # 事务建库、参数化分层查询与错误日志
@@ -46,11 +51,15 @@ macOS/
 
 `PageTransition` 仅处理共享内容视口：依据层级决定方向，旧页以本应用透明内容快照短暂淡出，新页以轻微位移淡入。快照不参与命中或辅助功能树；中断、缩放、隐藏和结束都会清理，不影响真实页的选择、滚动或键盘响应。
 
-`LauncherView` 负责三级导航与状态反馈；`DetailDocument` 将原始经验、来源、解释、Prompt 展示为一个容器中的四段。正文是只读、可选的 `NSTextView`；围栏代码使用系统等宽字体，其余正文使用系统比例字体。复制完整 Prompt 使用原始字段，不使用排版后的文本。
+`LauncherView` 负责三级导航与状态反馈；`DetailDocument` 以「Prompt / 经验与来源」切换，后一段仍将原始经验、来源与解释分开。正文是只读、可选的 `NSTextView`，独立滚动；围栏代码使用系统等宽字体，其余正文使用系统比例字体。复制完整 Prompt 使用原始字段，不使用排版后的文本。
 
 `PromptLibrary` 将 repository 操作派发到专用串行后台队列，再把结果回传主线程。`SQLitePromptRepository` 首次访问时打开本地库，在 `BEGIN IMMEDIATE` 事务内检查 schema version、建表并导入原有七条示例；commit 后才可见。重启不重复导入，也不自动覆盖已有修改/删除。分类独立查询 categories；第二层的 `PromptSummary` 不含正文；第三层通过 ID 与分类 ID 精确查询完整 `PromptEntry`。没有数据库错误时静默回退 JSON 的路径。
 
-UI 通过请求代次丢弃迟到结果，加载期间禁止插入旧详情，返回保留选择/滚动。失败显示简短反馈，下次唤起重试失败的读取。原有样式、窗口动画和系统插入流程保留。SQLite 操作使用参数绑定、外键、版本门禁和超时，日志仅记录层级、行数、错误代码和耗时。首次种子数据保留稳定 ID 与原文字段；后续编辑/导入仍属 Stage 2。
+UI 通过请求代次丢弃迟到结果，加载期间禁止插入旧详情，返回保留选择/滚动。失败显示简短反馈，下次唤起重试失败的读取。窗口动画和系统插入流程保留，视觉按最新 Figma 更新。SQLite 操作使用参数绑定、外键、版本门禁和超时，日志仅记录层级、行数、错误代码和耗时。首次种子数据保留稳定 ID 与原文字段。
+
+`ManagementWindowController` 复用同一 `PromptLibrary`，提供列表、预览、标题／简述查询及 `PromptEditorView`；长文本使用可撤销的原生 `NSTextView`。管理窗口为 titled/fullSizeContentView 原生窗口，保留红黄绿系统按钮；关闭通过 delegate 保存草稿后隐藏。创建／编辑在事务中验证必填和分类；重试使用原 UUID，编辑对比原快照拒绝过期覆盖。成功提交后发送通知，管理页与浮窗重新查询，按 ID 保留有效选择。
+
+伴随 `library-activity.sqlite3` 通过同一串行连接按需 ATTACH，保存编辑草稿和成功使用事件；主内容 schema 仍为 v1。自动草稿、切页、关闭及退出均保留未完成输入，失败不关闭表单。退出先取消当前终止请求，完成草稿和队列排空后再次终止，避免 terminateLater 的 MainActor 回调死锁。`UsageDashboard` 只聚合实际成功复制及完整回读确认插入的事件，内部粘贴不重复计次。
 
 
 ## 插入路径与限制
@@ -73,7 +82,7 @@ UI 通过请求代次丢弃迟到结果，加载期间禁止插入旧详情，�
 
 Stage 1 已用 SQLite repository 取代示例加载器：分类查询不读条目正文，列表查询只取标题与简述，进入详情才读取完整字段。UI 不直接拼 SQL；数据工作避免阻塞主线程。种子迁移保留现有 ID，并继续明确示例属性。
 
-Stage 2 增加独立管理窗口、事务保存和 JSON 导入导出；保存成功发内容变更事件，刷新当前列表并保持选择。扩展作者/来源链接与创建/修改时间，保留原文与 Prompt 的独立字段。
+Stage 2 当前开发版已接入独立管理窗口、事务新增／编辑、管理页搜索、草稿与使用统计。完整验收状态见 [figma-integration.md](figma-integration.md)。JSON 导入导出、删除和浮窗搜索尚未实现；不把测试中的 JSON 字段往返当成产品导入导出功能。
 
 Stage 3 增加本地 Draft 和 Go + chi 整理接口。原文先持久化，手工编辑稿和生成候选分开保存，由用户选择采用候选。
 
