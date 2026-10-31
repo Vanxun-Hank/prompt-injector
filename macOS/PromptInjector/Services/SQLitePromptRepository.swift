@@ -184,6 +184,24 @@ final class SQLitePromptRepository: ManagedPromptRepository {
             }
         }
     }
+    func create(_ entry: PromptEntry, operationID: UUID) throws {
+        let start = ProcessInfo.processInfo.systemUptime
+        logger.write(.storageSaveStarted, operationID: operationID, fields: .init(stage: "create"))
+        do {
+            try entry.validateCreation()
+            try open()
+            try execute("BEGIN IMMEDIATE")
+            do {
+                try execute("INSERT INTO prompts (id, category_id, title, summary, original_experience, source, explanation, prompt, sort_order) SELECT ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(MAX(sort_order), -1) + 1 FROM prompts",
+                            [entry.id, entry.categoryID, entry.title, entry.summary, entry.originalExperience, entry.source, entry.explanation, entry.prompt])
+                try execute("COMMIT")
+            } catch { try? execute("ROLLBACK"); throw error }
+            logger.write(.storageSaved, operationID: operationID, fields: .init(stage: "create", elapsedMilliseconds: elapsed(start), rowCount: 1))
+        } catch {
+            logger.write(.storageFailed, level: .error, operationID: operationID, fields: .init(stage: "create", systemCode: errorCode(error), elapsedMilliseconds: elapsed(start)))
+            throw error
+        }
+    }
     private func query<T>(_ layer: String, _ body: () throws -> [T]) throws -> [T] {
         let start = ProcessInfo.processInfo.systemUptime
         do {

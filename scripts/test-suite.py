@@ -22,6 +22,7 @@ def validate_ui_report(report):
                 'management/save-failure-keeps-input', 'management/reopen-preserves-fields-and-id',
                 'management/cancel-restores-local-draft', 'management/edit-stable-id-without-duplicate',
                 'statistics/explicit-success-events-only', 'assets/all-figma-assets-load',
+                'management/separate-native-window', 'management/required-fields', 'management/return-edits-does-not-save',
                 'statistics/all-columns-fit', 'management/native-window-controls',
                 'management/native-close-hides', 'management/native-minimize', 'management/native-zoom',
                 'management/native-fullscreen-space', 'management/native-fullscreen-exit',

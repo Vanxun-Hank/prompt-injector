@@ -8,6 +8,12 @@ import ApplicationServices
     private var element: AXUIElement?
     private var capturedText: String?
     private var capturedRange: NSRange?
+    private var capturedDOMClassAvailable: Bool?
+    private var capturedProseMirrorRoot: Bool?
+    private var capturedEmptyComposerMarker: Bool?
+    private var capturedInspectedNodeCount: Int?
+    private var capturedAXValueCount: Int?
+    private var capturedEmptyComposerNormalized: Bool?
     private var captureFailure: Failure?
     var hasCapturedTarget: Bool { element != nil && captureFailure == nil }
     private var captureID: UUID?
@@ -25,7 +31,9 @@ import ApplicationServices
     }
 
     func capture(_ app: NSRunningApplication?) {
-        application = app; element = nil; capturedText = nil; capturedRange = nil; captureFailure = nil
+        application = app; element = nil; capturedText = nil; capturedRange = nil; captureFailure = .noTextFocus
+        capturedDOMClassAvailable = nil; capturedProseMirrorRoot = nil; capturedEmptyComposerMarker = nil; capturedInspectedNodeCount = nil
+        capturedAXValueCount = nil; capturedEmptyComposerNormalized = nil
         captureID = UUID(); operationID = nil; operationStart = nil; stage = "capture"; activeMethod = "none"
         targetName = app?.localizedName
         record("capture-started", method: "none")
@@ -54,7 +62,7 @@ import ApplicationServices
         let enabled = boolean(kAXEnabledAttribute, from: target)
         let editable = boolean("AXEditable", from: target)
         let method = InsertionMethod.forApplication(app.bundleIdentifier)
-        let text = string(kAXValueAttribute, from: target)
+        let text = readContents(from: target, recordingCapture: true)
         let range = selection(in: target)
         // Custom editors may expose an editable AXGroup. Use capabilities, not role alone.
         let capabilities = TargetCapabilities(role: role, isSecure: secure, textReadable: text != nil, selectionReadable: range != nil,
@@ -68,7 +76,7 @@ import ApplicationServices
             record("capture-unsupported", method: method.rawValue, role: role, capabilities: diagnostics, failure: "unsupportedCapabilities")
             return
         }
-        element = target; capturedText = text; capturedRange = range
+        element = target; capturedText = text; capturedRange = range; captureFailure = nil
         record("captured", method: method.rawValue, before: text, role: role, capabilities: diagnostics)
     }
 
@@ -156,7 +164,7 @@ import ApplicationServices
         var observed: String?
         for _ in 0..<24 {
             try await Task.sleep(nanoseconds: 50_000_000)
-            observed = string(kAXValueAttribute, from: target)
+            observed = readContents(from: target)
             if let observed, plan.matches(observed) {
                 if let transaction { recordClipboardRestoration(transaction.restoreIfOwned()) }
                 record("verified", method: method, before: before, observed: observed)
@@ -186,8 +194,30 @@ import ApplicationServices
               let focused, CFEqual(focused, target) else { throw Failure.targetLost }
     }
     private func validateContents(_ target: AXUIElement, plan: InsertionPlan) throws {
-        guard let value = string(kAXValueAttribute, from: target), let range = selection(in: target) else { throw Failure.targetLost }
+        guard let value = readContents(from: target), let range = selection(in: target) else { throw Failure.targetLost }
         guard value == plan.before, range == plan.range else { throw Failure.changed }
+    }
+    private func readContents(from target: AXUIElement, recordingCapture: Bool = false) -> String? {
+        guard let value = string(kAXValueAttribute, from: target) else { return nil }
+        let range = selection(in: target)
+        let role = string(kAXRoleAttribute, from: target)
+        let bundleID = application?.bundleIdentifier
+        let structure = bundleID == "com.openai.codex" && role == "AXTextArea" && range == NSRange(location: 0, length: 0) && !value.isEmpty
+            ? inspectComposerStructure(in: target) : nil
+        if recordingCapture {
+            capturedDOMClassAvailable = structure?.available
+            capturedProseMirrorRoot = structure?.root
+            capturedEmptyComposerMarker = structure?.empty
+            capturedInspectedNodeCount = structure?.nodeCount
+        }
+        if recordingCapture { capturedAXValueCount = value.utf16.count }
+        guard let resolved = TargetText.resolved(value: value, selection: range, bundleID: bundleID, role: role, emptyComposerMarker: structure?.empty == true) else { return nil }
+        // Reject a torn read instead of treating changing real text as an empty composer.
+        if resolved != value {
+            guard string(kAXValueAttribute, from: target) == value, selection(in: target) == range else { return nil }
+        }
+        if recordingCapture { capturedEmptyComposerNormalized = resolved != value }
+        return resolved
     }
     private func boolean(_ attribute: String, from element: AXUIElement) -> Bool? {
         var value: CFTypeRef?
@@ -207,6 +237,29 @@ import ApplicationServices
         var range = CFRange()
         guard AXValueGetValue(value as! AXValue, .cfRange, &range), range.location >= 0, range.length >= 0 else { return nil }
         return NSRange(location: range.location, length: range.length)
+    }
+    private func inspectComposerStructure(in target: AXUIElement) -> (available: Bool, root: Bool, empty: Bool, nodeCount: Int) {
+        var nodes = [target], index = 0
+        var rootClasses: [String]?, descendants: [[String]] = []
+        var available = false
+        while index < nodes.count && index < 32 {
+            let node = nodes[index]
+            var value: CFTypeRef?
+            if AXUIElementCopyAttributeValue(node, "AXDOMClassList" as CFString, &value) == .success, let classes = value as? [String] {
+                available = true
+                if index == 0 { rootClasses = classes } else { descendants.append(classes) }
+            }
+            value = nil
+            if nodes.count < 32, AXUIElementCopyAttributeValue(node, kAXChildrenAttribute as CFString, &value) == .success, let children = value as? [AnyObject] {
+                for child in children.prefix(32 - nodes.count) where CFGetTypeID(child) == AXUIElementGetTypeID() {
+                    nodes.append(child as! AXUIElement)
+                }
+            }
+            index += 1
+        }
+        assert(index <= 32)
+        return (available, rootClasses?.contains("ProseMirror") == true,
+                TargetCapabilities.hasEmptyComposerMarker(rootClasses: rootClasses, descendantClasses: descendants), index)
     }
     private func setStage(_ value: String) {
         stage = value
@@ -256,6 +309,12 @@ import ApplicationServices
                                                  expectedLineBreakCount: observation?.expectedLineBreakCount,
                                                  observedLineBreakCount: observation?.observedLineBreakCount,
                                                  matchesCollapsingBlankLines: observation?.matchesCollapsingBlankLines,
-                                                 matchesIgnoringLineBreaks: observation?.matchesIgnoringLineBreaks))
+                                                 matchesIgnoringLineBreaks: observation?.matchesIgnoringLineBreaks,
+                                                 domClassMetadataAvailable: capturedDOMClassAvailable,
+                                                 proseMirrorRootSeen: capturedProseMirrorRoot,
+                                                 emptyComposerMarkerSeen: capturedEmptyComposerMarker,
+                                                 inspectedNodeCount: capturedInspectedNodeCount,
+                                                 axValueUTF16Count: capturedAXValueCount,
+                                                 emptyComposerNormalized: capturedEmptyComposerNormalized))
     }
 }

@@ -1,7 +1,28 @@
 import XCTest
+import AppKit
 @testable import PromptInjector
 
 final class BugRegressionTests: XCTestCase {
+    @MainActor func testCaptureWithoutInputReportsNoTextFocusAndNeverWrites() async throws {
+        let suite = "PI-missing-focus-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+        let logger = DiagnosticLog(directory: directory)
+        defer { logger.flush(); defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: directory) }
+        let service = InjectionService(defaults: defaults, logger: logger, permissionCheck: { true })
+        for application in [nil, NSRunningApplication.current] {
+            service.capture(application)
+            var hidden = false
+            do { try await service.insert("PRIVATE PROMPT", hide: { hidden = true }); XCTFail("Must reject a missing captured input") }
+            catch { XCTAssertEqual(error as? InjectionService.Failure, .noTextFocus) }
+            XCTAssertFalse(hidden)
+            let snapshot = try XCTUnwrap(defaults.dictionary(forKey: "insertion.lastResult"))
+            XCTAssertEqual(snapshot["errorCode"] as? String, "noTextFocus")
+        }
+        logger.flush()
+        let records = try String(contentsOf: directory.appendingPathComponent("events.jsonl"), encoding: .utf8)
+        XCTAssertFalse(records.contains("insertion.write_requested")); XCTAssertFalse(records.contains("PRIVATE PROMPT"))
+    }
     // PI-003 / PI-004: exercise the real service's early failure path, without touching external apps.
     @MainActor func testServiceClearsOldSuccessAndLogsFreshPermissionFailureThenRecapture() async throws {
         let suite = "PI-regression-\(UUID())"

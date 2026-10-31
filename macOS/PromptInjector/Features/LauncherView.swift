@@ -241,7 +241,9 @@ final class PromptTable: NSTableView {
     @objc private func rowClicked() { if table.clickedRow >= 0 { openSelection() } }
     func remember() {
         guard !isLoading else { return }
-        navigation.remember(selection: max(0, table.selectedRow), scrollY: currentEntry == nil ? listScroll.contentView.bounds.origin.y : detailDocument.bodyScroll.contentView.bounds.origin.y)
+        let index = table.selectedRow
+        let ids = navigation.page == .categories ? categories.map(\.id) : visibleEntries.map(\.id)
+        navigation.remember(selection: max(0, index), scrollY: currentEntry == nil ? listScroll.contentView.bounds.origin.y : detailDocument.bodyScroll.contentView.bounds.origin.y, selectionID: ids.indices.contains(index) ? ids[index] : nil)
     }
     func navigate(to page: LauncherPage, animate: Bool = true) {
         guard page != navigation.page else { return }
@@ -289,7 +291,11 @@ final class PromptTable: NSTableView {
         backButton.isHidden = page == .categories
         updateHeader()
         library.load(page) { [weak self] result in
-            guard let self, self.loadGeneration == generation, self.navigation.page == page else { return }
+            guard let self else { return }
+            guard self.loadGeneration == generation, self.navigation.page == page else {
+                DiagnosticLog.shared.write(.libraryLoadDiscarded, fields: .init(toLevel: page.level))
+                return
+            }
             self.isLoading = false
             self.table.isEnabled = true
             switch result {
@@ -324,7 +330,8 @@ final class PromptTable: NSTableView {
             table.reloadData()
             let count = numberOfRows(in: table)
             if count > 0 {
-                let restored = selectionToRestore.flatMap { id in visibleEntries.firstIndex { $0.id == id } } ?? min(navigation.restored.selection, count - 1)
+                let ids = navigation.page == .categories ? categories.map(\.id) : visibleEntries.map(\.id)
+                let restored = (selectionToRestore ?? navigation.restored.selectionID).flatMap { ids.firstIndex(of: $0) } ?? min(navigation.restored.selection, count - 1)
                 table.selectRowIndexes(IndexSet(integer: restored), byExtendingSelection: false)
             }
             selectionToRestore = nil
@@ -382,6 +389,13 @@ final class PromptTable: NSTableView {
         if let entry = currentEntry { onInsert?(entry) }
     }
     @objc private func libraryChanged(_ notification: Notification) {
+        guard let category = notification.userInfo?["category"] as? String else { return }
+        switch navigation.page {
+        case .categories: break
+        case .entries(let id), .detail(let id, _):
+            guard id == category || id == notification.userInfo?["previousCategory"] as? String else { return }
+        }
+        DiagnosticLog.shared.write(.libraryRefreshed, fields: .init(toLevel: navigation.page.level))
         selectionToRestore = visibleEntries.indices.contains(table.selectedRow) ? visibleEntries[table.selectedRow].id : nil
         remember()
         if case .detail(_, let id) = navigation.page, id == notification.userInfo?["id"] as? String,

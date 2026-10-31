@@ -16,6 +16,10 @@ struct TargetCapabilities {
         ["AXButton", "AXCheckBox", "AXRadioButton", "AXSlider", "AXPopUpButton", "AXMenuItem"].contains(role ?? "")
     }
 
+    static func hasEmptyComposerMarker(rootClasses: [String]?, descendantClasses: [[String]]) -> Bool {
+        rootClasses?.contains("ProseMirror") == true && descendantClasses.contains { $0.contains("placeholder") }
+    }
+
     var supportsInsertion: Bool {
         guard !Self.isNonTextControl(role) else { return false }
         let editable = ["AXTextArea", "AXTextField", "AXComboBox"].contains(role ?? "") || selectionWritable || valueWritable

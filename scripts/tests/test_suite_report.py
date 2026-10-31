@@ -16,6 +16,7 @@ class SuiteReportTests(unittest.TestCase):
                   'management/cancel-restores-local-draft','management/edit-stable-id-without-duplicate',
                   'statistics/explicit-success-events-only','assets/all-figma-assets-load']
         names += ['statistics/all-columns-fit','management/native-window-controls',
+                  'management/separate-native-window','management/required-fields','management/return-edits-does-not-save',
                   'management/native-close-hides','management/native-minimize','management/native-zoom',
                   'management/native-fullscreen-space','management/native-fullscreen-exit',
                   'management/regular-application','application/branded-icon','application/transparent-icon-canvas',

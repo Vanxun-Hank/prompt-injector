@@ -2,6 +2,13 @@ import XCTest
 @testable import PromptInjector
 
 final class PasteCapabilityTests: XCTestCase {
+    func testEmptyComposerMarkerRequiresExactRootAndParagraphClasses() {
+        XCTAssertTrue(TargetCapabilities.hasEmptyComposerMarker(rootClasses: ["ProseMirror"], descendantClasses: [["placeholder"]]))
+        XCTAssertFalse(TargetCapabilities.hasEmptyComposerMarker(rootClasses: nil, descendantClasses: [["placeholder"]]))
+        XCTAssertFalse(TargetCapabilities.hasEmptyComposerMarker(rootClasses: ["ProseMirror-other"], descendantClasses: [["placeholder"]]))
+        XCTAssertFalse(TargetCapabilities.hasEmptyComposerMarker(rootClasses: ["ProseMirror"], descendantClasses: [["placeholder-token"]]))
+        XCTAssertFalse(TargetCapabilities.hasEmptyComposerMarker(rootClasses: ["ProseMirror"], descendantClasses: [[]]))
+    }
     func testObservedCodexGroupCanPasteWithoutAXSetters() {
         let target = TargetCapabilities(role: "AXGroup", isSecure: false, textReadable: true, selectionReadable: true, selectionWritable: false, valueWritable: false, method: .paste)
         XCTAssertTrue(target.supportsInsertion)

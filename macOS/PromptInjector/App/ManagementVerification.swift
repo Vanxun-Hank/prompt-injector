@@ -13,9 +13,10 @@ extension AppDelegate {
             for _ in 0..<300 { if condition() { return }; try? await Task.sleep(nanoseconds: 10_000_000) }
             check("management/async-timeout", false)
         }
-        let manager = ManagementWindowController(library: controller.launcher.library)
-        management = manager; manager.show()
-        guard let window = manager.window else { return [["name": "management/window", "passed": false]] }
+        openManagement()
+        guard let manager = management, let window = manager.window else { return [["name": "management/window", "passed": false]] }
+        await until { controller.window?.isVisible == false }
+        check("management/separate-native-window", window !== controller.window && window.styleMask.contains(.titled))
         let backdrop = NSWindow(contentRect: window.frame.insetBy(dx: -24, dy: -24), styleMask: [.borderless], backing: .buffered, defer: false)
         backdrop.backgroundColor = Theme.hex(0x242424)
         func capture(_ name: String) async {
@@ -63,12 +64,21 @@ extension AppDelegate {
         manager.root.newButton.performClick(nil)
         await until { manager.root.editor != nil }
         guard let editor = manager.root.editor else { window.orderOut(nil); management = nil; return checks }
+        manager.saveEditor()
+        check("management/required-fields", !manager.isSaving && manager.root.requiredLabel.stringValue.contains("标题和 Prompt"))
         editor.titleField.stringValue = "原生 QA · 中文😀"
         editor.summaryText.text.string = "本地新增、重启、编辑与搜索验证"
         editor.sourceField.stringValue = "自动化验证数据"
         editor.originalText.text.string = "保留原文\n第二行😀"
         editor.explanationText.text.string = "解释与 Prompt 独立保存。"
         editor.promptText.text.string = "仅写入原输入框，不发送。\n\n中文😀\nlet value = 1"
+        let beforeReturn = editor.promptText.text.string
+        window.makeFirstResponder(editor.promptText.text)
+        editor.promptText.text.setSelectedRange(NSRange(location: beforeReturn.utf16.count, length: 0))
+        let enter = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil, characters: "\r", charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36)!
+        window.sendEvent(enter)
+        check("management/return-edits-does-not-save", editor.promptText.text.string == beforeReturn + "\n" && !manager.isSaving)
+        editor.promptText.text.string = beforeReturn
         editor.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification, object: editor.titleField))
         let initial = editor.value
         await capture("management-editor")

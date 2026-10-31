@@ -19,6 +19,11 @@
 | PI-013 | 文字控件外框居中，但原生文字从框顶部绘制；数字／名称偏离箭头约 2 pt，搜索约 2.6 pt。条目还用包含行距的高度误判紧凑模式 | 统一用原生基线与字形边界对齐，输入基线保持稳定；侧栏与统计手绘文字共用字形居中，排行单元格按行居中，紧凑模式按宽度判断 | `NavigationTests.testIconAndVisibleTextShareCenterline`、`testRowSpacingDoesNotSelectCompactTextLayout` 修复前共 4 处断言失败、修复后通过；`testDrawnLabelsCenterVisibleInkInBothCoordinateDirections` 验证绘制方向。完整套件与 19 张当前截图独立复核通过 |
 | PI-014 | Dock 图标有白色正方形；AppIcon.png 将圆角黑色底板外围白色画布保存为不透明像素，运行时与 ICNS 均沿用该源图 | 保留品牌标志和黑色圆角底板，imagegen 去除外围白底；源图与运行时共用透明 PNG，构建重新生成 ICNS | `NavigationTests.testAppIconHasTransparentCanvasOutsideDarkTile` 旧图 8 个透明断言失败；原生 `application/transparent-icon-canvas` 同时检查源图、运行时图标和打包 ICNS，完整套件通过。已正常重启；Dock 工具目标超时，未目测实际 Dock |
 
+| PI-015 | 捕获没有外部目标/聚焦元素时未保存失败状态，插入时误报「原输入框已失效」 | 捕获开始即设为 `noTextFocus`，只有完整捕获成功才清除；保留权限/安全/非文本判断及真实目标失效校验，不重试、不猜目标 | `BugRegressionTests.testCaptureWithoutInputReportsNoTextFocusAndNeverWrites` 覆盖 nil/自身应用，修复前 4 个断言失败；成功捕获/真实插入另以用户操作与日志验收 |
+| PI-016 | 普通主框实际为空，CSS 占位装饰却被 AXValue/字符数/范围读取计作 16 个单位；预期全文错误地保留了提示，插入后误报 unconfirmed 并重开浮窗 | 真实空框采集确认 ProseMirror 根与 placeholder 标记同时存在。共用读取器仅在 Codex AXTextArea、标记齐全且零起点选区时解析为空；稳定性复读、原目标、选区和全文校验保留。修复通过自动化及当前环境真实空框插入：全文回读一致、剪贴板恢复、成功收起 | `TargetTextTests` 的 4 项测试在修复前 7 个断言失败，修复后通过；包括真实正文恰与提示相同、不同长度/语言提示、非零/未知选区、其他应用/角色、输入后标记消失等边界 |
+
+合并编号说明：main 的 `9a7fd0c` 原用 PI-009／PI-010 表示焦点提示与空框占位问题；本分支已有同号 UI 缺陷，合并后分别记为 PI-015／PI-016。历史验收记录保留原编号及映射。
+
 ## 系统排查中应保留的判断
 
 - 多次按插入不等于多次捕获。更换目标需先收起浮窗，在新输入框确认光标，再重新唤起；仅切换 Prompt 不改变目标。
