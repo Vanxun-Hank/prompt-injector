@@ -227,7 +227,7 @@ final class PromptTable: NSTableView {
             cell.category = true
             cell.title.stringValue = category.name
             cell.count.stringValue = String(category.entryCount)
-            Theme.glow(cell.title, color: Theme.categoryColor(category.id))
+            Theme.glow(cell.title, color: Theme.categoryColor(category.id, in: categories))
             cell.setAccessibilityLabel(category.name)
         } else {
             let entry = visibleEntries[row]
@@ -352,7 +352,7 @@ final class PromptTable: NSTableView {
             intro.left = "分类"; intro.right = "\(categories.reduce(0) { $0 + $1.entryCount }) 条内容"
         case .entries(let id), .detail(let id, _):
             breadcrumb.stringValue = Theme.categoryName(id, in: categories); breadcrumb.font = .systemFont(ofSize: 14, weight: .medium)
-            Theme.glow(breadcrumb, color: Theme.categoryColor(id))
+            Theme.glow(breadcrumb, color: Theme.categoryColor(id, in: categories))
             intro.left = "\(visibleEntries.count) 条内容"; intro.right = ""
         }
         logo.isHidden = navigation.page != .categories

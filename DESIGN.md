@@ -28,7 +28,7 @@ typography:
     fontWeight: 500
   preview-title:
     fontFamily: system-ui
-    fontSize: 24px
+    fontSize: 22px
     fontWeight: 500
   launcher-title:
     fontFamily: system-ui
@@ -47,6 +47,16 @@ typography:
   reading:
     fontFamily: system-ui
     fontSize: 15px
+    fontWeight: 400
+    lineHeight: 28px
+  preview-reading:
+    fontFamily: system-ui
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 32px
+  preview-explanation:
+    fontFamily: system-ui
+    fontSize: 14px
     fontWeight: 400
     lineHeight: 28px
   label:
@@ -109,7 +119,16 @@ components:
   management-row:
     textColor: "{colors.text}"
     typography: "{typography.row}"
-    height: 84px
+    rounded: "{rounded.row}"
+    height: 80px
+  management-reading-panel:
+    backgroundColor: "{colors.panel}"
+    textColor: "{colors.text}"
+    typography: "{typography.preview-reading}"
+    rounded: "{rounded.panel}"
+    padding: "24px 32px"
+  management-reading-panel-compact:
+    padding: "{spacing.content-edge}"
   segment-group:
     backgroundColor: "{colors.band}"
     textColor: "{colors.secondary}"
@@ -144,9 +163,11 @@ components:
 
 安静的中性深黑外壳承载紧凑、清楚的内容工具。管理窗口让浏览、长内容编辑和使用统计各有空间；快捷浮窗保持单窗三级调用。白色通用控件、灰色辅助信息与局部分类色建立层次，渐变 Logo 是贯穿两个窗口的识别资产。
 
-本规范合并既有原生约定、Figma 移植与之后确认的界面精简；用户最新修订优先。系统字体、可选择正文、原生焦点和键盘行为继续服务于快速查找与调用；彩色柔光集中在 Logo、管理分类色点和浮窗分类文字。界面组成来自 [管理窗口 brief](docs/content-manager-brief.md) 与 [浮窗更新 brief](docs/launcher-refresh-brief.md)，授权和原型审核状态只在 [prototype.md](docs/prototype.md) 维护。
+本规范合并既有原生约定、Figma 移植与之后确认的界面精简；用户最新修订优先。系统字体、可选择正文、原生焦点和键盘行为继续服务于快速查找与调用；彩色柔光集中在 Logo、管理分类色点和浮窗分类文字。界面组成来自 [管理窗口 brief](docs/content-manager-brief.md)、[内容阅读 V2](docs/content-reading-v2.md) 与 [浮窗更新 brief](docs/launcher-refresh-brief.md)，授权和原型审核状态只在 [prototype.md](docs/prototype.md) 维护。
 
-**证据边界：**本规范依据 2026-10-30 的 `Theme.swift`、`DesignUI.swift`、管理／编辑／统计／浮窗视图及本地 Design 资源提取。本次对齐与图标修正的完整套件通过：52 项 Swift、7 项 Python 与 108 项原生检查，并留存 19 张新截图，报告为 `artifacts/tests/20261030T162746.795484Z/summary.json` 与 `ui/report.json`，构建 ID 为 `20261030T162750Z`，源码指纹为 `ffbe2067cbe2fae4e26a2103420947320e65bf8bba802c0090d440294c140bba`。独立视觉复核 SHIP，检查 `.impeccable/review/alignment/` 的全部 19 张有效截图；结论覆盖各尺寸浮窗、侧栏、编辑与统计的文字对齐，以及图标资源和打包结果。原生检查验证运行时与打包图标的透明外画布，源 PNG、10 张构建 PNG 与 ICNS 的 alpha 检查留在 `artifacts/alignment/icon-alpha.log`；八张打包位图均有来源记录。此前正常应用已通过系统绿色按钮进入独立 Space 全屏；本次已重启至上述构建并打开现有内容库。Dock 的实际系统外观未取得截图，真实跨应用输入框插入也未在本次版本复验，不将这些边界算作本轮视觉通过。最新进度见 [移植记录](docs/figma-integration.md)。前置 token 的 CSS px 在 AppKit 中对应同数值的逻辑 pt；侧车 HTML/CSS 仅供设计面板预览，不模拟 AppKit 的排版、焦点环或系统阴影；侧车八级 OKLCH 梯度是合成展示色，不是原生颜色 token。
+**当前记录依据（2026-11-01）：**V2 浏览页与分类循环色依据当前 `ManagementWindow.swift`、`DesignUI.swift`、`LauncherView.swift`、`PromptEditor.swift`、`UsageDashboard.swift` 和 SQLite 分类查询提取，并对照 `artifacts/tests/20261101T044433.502881Z/ui/` 中的浏览、原文、说明、最小窗口及分类滚动截图。编辑器的长文本字体、顶部保存条与统计布局继续沿用既有规范。此次文档对照不等于新的真实跨应用插入验收；本轮套件及系统验收边界见 [testing.md](docs/testing.md)。
+
+**历史证据（2026-10-30）：**初版规范依据当日的 `Theme.swift`、`DesignUI.swift`、管理／编辑／统计／浮窗视图及本地 Design 资源提取。该轮对齐与图标修正的完整套件通过：52 项 Swift、7 项 Python 与 108 项原生检查，并留存 19 张新截图，报告为 `artifacts/tests/20261030T162746.795484Z/summary.json` 与 `ui/report.json`，构建 ID 为 `20261030T162750Z`，源码指纹为 `ffbe2067cbe2fae4e26a2103420947320e65bf8bba802c0090d440294c140bba`。独立视觉复核 SHIP，检查 `.impeccable/review/alignment/` 的全部 19 张有效截图；结论覆盖各尺寸浮窗、侧栏、编辑与统计的文字对齐，以及图标资源和打包结果。原生检查验证运行时与打包图标的透明外画布，源 PNG、10 张构建 PNG 与 ICNS 的 alpha 检查留在 `artifacts/alignment/icon-alpha.log`；八张打包位图均有来源记录。此前正常应用已通过系统绿色按钮进入独立 Space 全屏；该轮已重启至上述构建并打开现有内容库。Dock 的实际系统外观未取得截图，真实跨应用输入框插入也未在该轮版本复验，不将这些边界算作该轮视觉通过。最新进度见 [移植记录](docs/figma-integration.md)。前置 token 的 CSS px 在 AppKit 中对应同数值的逻辑 pt；侧车 HTML/CSS 仅供设计面板预览，不模拟 AppKit 的排版、焦点环或系统阴影；侧车八级 OKLCH 梯度是合成展示色，不是原生颜色 token。
 
 **Key Characteristics:**
 
@@ -168,8 +189,8 @@ components:
 
 ### Secondary
 
-- **需求暖黄**（`requirements`）、**编码淡蓝**（`coding`）、**排查珊瑚**（`debugging`）、**审查淡紫**（`review`）、**发布粉色**（`release`）：五个初始分类保留原映射；新增分类统一中性色、默认圆点和 folder 符号，名称来自数据库。
-- 管理窗口的侧栏分类名、条目元信息及预览分类名使用对应彩色文字；预览只显示分类名称，侧栏、编辑选择器、趋势图图例和分类分布保留对应柔光色点。编辑选择器文字、趋势图图例和分布名称按当前稿保持中性；统计曲线、面积与占比条使用分类色。
+- **需求暖黄**（`requirements`）、**编码淡蓝**（`coding`）、**排查珊瑚**（`debugging`）、**审查淡紫**（`review`）、**发布粉色**（`release`）：沿用五种原色，按 SQLite 返回的完整分类顺序循环黄、蓝、珊瑚、紫、粉，第六黄、第七蓝；色值不再按分类 ID 固定。分类名称来自数据库，新增分类沿用 folder 符号与对应柔光圆点。
+- 管理窗口的侧栏分类名及预览分类名使用对应彩色文字；预览只显示分类名称，条目列表不再重复分类元信息。侧栏、编辑选择器、趋势图图例和分类分布保留对应柔光色点。编辑选择器文字、趋势图图例和分布名称保持中性；统计曲线、面积与占比条使用分类色。
 - 浮窗不出现分类色点；第一层分类名及后续页顶部当前分类名使用对应彩色文字和柔光。条目标题、简述、数量及操作仍是中性色。
 
 ### Neutral
@@ -180,6 +201,8 @@ components:
 
 **The Neutral Controls Rule.** 通用导航、按钮、选中页签与时段使用深灰底和白色文字／图标；分类色只进入上述明确的分类与数据位置。
 
+**The Shared Category Order Rule.** 侧栏、编辑器、预览、浮窗和统计均按 SQLite 的完整分类顺序取循环色，不按当前筛选结果重新编号；名称始终保留，颜色不作为唯一标识。
+
 ## Typography
 
 **Display / Body Font:** `NSFont.systemFont`。**Code Font:** `NSFont.monospacedSystemFont`，仅浮窗 Prompt 的围栏代码段使用。
@@ -187,8 +210,9 @@ components:
 客户端使用系统字体是有意选择。Figma 中 Inter 与 Noto Sans SC 是解决预览导出缺字的表达方式，不要求在客户端嵌入这些字体。普通中文、英文说明和 Prompt 段落继续使用比例字体。
 
 - `headline` 用于管理页与统计页标题；`preview-title` 用于管理预览标题；`launcher-title` 用于浮窗详情标题。
-- `row` 用于条目标题、浮窗分类及管理预览分类名；预览分类采用 14 pt 中等字重，管理侧栏名称为 13 pt 常规字重。品牌标题为 15 pt 半粗体，局部区块标题为 16 pt 中等字重。
-- `body` 是浮窗正文基线；`reading` 用于管理预览 Prompt 与长文本编辑。管理简述编辑使用 13 pt／24 pt 行高，其他长文本为 15 pt／28 pt 行高。
+- `row` 用于条目标题与浮窗分类；管理预览分类为 13 pt 中等字重，管理侧栏名称为 13 pt 常规字重。品牌标题为 15 pt 半粗体，局部区块标题为 16 pt 中等字重。
+- `body` 是浮窗正文基线；`reading` 用于编辑器长文本，管理简述编辑使用 13 pt／24 pt 行高。
+- `preview-reading` 用于管理预览的 Prompt 与作者原文；`preview-explanation` 仅用于独立的整理说明页。原文页的来源为 13 pt／24 pt 行高，HTTP／HTTPS 链接保留原生点击能力。
 - `label`、`caption` 和 `statistic` 分别用于辅助标签、弱提示和统计大数值。字段标签可用中等字重，不将全部辅助信息加粗。
 
 需要居中的标签与列表文字由 `Theme.placeLine` 结合 CoreText 可见字形边界及原生 `firstBaselineOffsetFromTop` 放置，兼容翻转和非翻转容器；不用控件框高度推测可见文字中心。搜索、标题和来源等单行可编辑字段使用稳定的字体基线，输入字符变化时不跳动。侧栏与统计图例、分布文字由 `Theme.drawLine` 按可见字形居中绘制；统计排行的 `UsageTableCell` 在每次布局时居中标签。
@@ -203,7 +227,9 @@ components:
 
 初始窗口 1440 × 960 pt，最小 1100 × 720 pt；启动时按可用屏幕范围收敛。侧栏固定 216 pt，主区从 x = 248 pt 开始，右侧留 32 pt。侧栏主导航与分类由分隔线分组；分类整行高 44 pt、行间距 10 pt，无逐行外框。管理窗口使用系统 `.titled`、`.fullSizeContentView`、`.closable`、`.miniaturizable` 与 `.resizable` 样式，标题栏透明、标题文字隐藏。左侧栏顶部留出空白放置系统提供的红黄绿按钮；关闭前完成草稿保存，再隐藏窗口。管理窗口以 `.fullScreenPrimary` 加入独立 Space，支持系统绿色按钮及 `⌃⌘F` 进入／退出原生全屏。打开管理窗口时应用切为常规 macOS 应用并使用自家 AppIcon，Dock 重开动作返回管理窗口。
 
-内容页与编辑页固定标题和 64 pt 高横向操作条，主体从 y = 192 pt 开始。浏览页为列表与预览两列，间隔 20 pt：主体宽度至少 1100 pt 时列表为 420 pt，否则取主体的 36% 且不小于 280 pt。列表行高 84 pt、行间距 4 pt，元信息只显示分类名称。预览分类名、标题与正文共用 24 pt 左边缘，分类名不带色点；Prompt 独立滚动，复制／编辑固定在底部。预览顶部不重复来源，完整原始经验、来源与解释仍可从“原文与来源”和编辑页访问。
+内容浏览页的标题、搜索和加号在同一行，主体从 y = 112 pt 开始，底部留 32 pt。列表与预览间隔 20 pt：主体宽度至少 1100 pt 时列表 352 pt，否则 280 pt。列表只显示标题与一行简述，行高由 `management-row` 定义，间距 4 pt；去掉重复分类元信息。预览默认只显示 Prompt，页签「Prompt / 作者原文 / 整理说明」独立切换；作者原文保留原字句和来源链接，复制始终复制完整 Prompt。预览左右留白在主体宽度至少 1100 pt 时用 `main-edge`，否则用 `content-edge`；标题最多两行，简述为 13 pt、最多两行，完整文字可从 tooltip 与编辑器读取。三个阅读页正文最大宽度均为 640 pt，各自使用 Typography 中的阅读层级；切换条目重回 Prompt，切换阅读页回到正文顶部。复制／编辑固定底部。分类区域独立纵向滚动，全部内容／统计和底部快捷键不随分类移动。
+
+编辑页仍保留 64 pt 横向操作条，主体从 y = 192 pt 开始。
 
 编辑页左列放标题、分类、简述与来源，右列放长文本；主区宽度至少 1100 pt 时左列 380 pt，否则 320 pt，两列间隔 20 pt。保存与取消固定于顶部，未保存／草稿／失败状态就近显示。左侧元信息与右侧正文各自滚动。
 
@@ -255,7 +281,7 @@ Logo 的逻辑槽位在管理侧栏为 32 pt、浮窗为 24 pt。当前 Logo PNG
 
 ### Segmented Views
 
-`ChoiceSegments` 使用 `band` 底色、4 pt 内边距、4 pt 按钮间隙；选中片使用更小圆角和 `selection`，文字为白色，未选为辅助灰。浮窗详情高 34 pt，编辑页高 44 pt，统计时段高 40 pt。分段使用原生按钮，选中状态提供辅助功能值。
+`ChoiceSegments` 使用 `band` 底色、4 pt 内边距、4 pt 按钮间隙；选中片使用更小圆角和 `selection`，文字为白色，未选为辅助灰。管理浏览页的三页阅读分段与编辑页均高 44 pt，浮窗详情高 34 pt，统计时段高 40 pt。分段使用原生按钮，选中状态提供辅助功能值。
 
 ### Panels and Documents
 
@@ -278,7 +304,7 @@ Logo 的逻辑槽位在管理侧栏为 32 pt、浮窗为 24 pt。当前 Logo PNG
 ### Do:
 
 - **Do** 使用系统字体、原生红黄绿按钮与独立 Space 全屏、应用 Logo、文字选择和明确的可访问名称。
-- **Do** 让通用控件保持中性白／深灰，按具体位置应用分类色。
+- **Do** 让通用控件保持中性白／深灰，所有界面按同一完整分类顺序循环五色。
 - **Do** 让管理预览只显示对齐的分类名称，在侧栏、编辑器和统计中保留分类色点；浮窗只使用分类文字柔光。
 - **Do** 复用本地资源：Logo／色点使用 3 倍 PNG 保留柔光和正确逻辑尺寸，SVG 保留为矢量来源。
 - **Do** 尊重降低透明度、提高对比度与减少动态效果设置。

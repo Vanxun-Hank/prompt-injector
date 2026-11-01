@@ -59,9 +59,9 @@ final class UsageChart: FlippedView {
             for j in 0..<buckets { accumulated[j] += series[i][j] }
             let upper = points(accumulated), area = NSBezierPath()
             append(upper, to: area, move: true); append(Array(lower.reversed()), to: area, move: false); area.close()
-            Theme.categoryColor(category.id).withAlphaComponent(0.58).setFill(); area.fill()
+            Theme.categoryColor(category.id, in: categories).withAlphaComponent(0.58).setFill(); area.fill()
             let line = NSBezierPath(); append(upper, to: line, move: true)
-            Theme.categoryColor(category.id).withAlphaComponent(0.85).setStroke(); line.lineWidth = 1.2; line.stroke()
+            Theme.categoryColor(category.id, in: categories).withAlphaComponent(0.85).setStroke(); line.lineWidth = 1.2; line.stroke()
         }
         let formatter = DateFormatter(); formatter.dateFormat = days == 1 ? "HH:mm" : "MM.dd"
         for i in 0...5 {
@@ -74,7 +74,7 @@ final class UsageChart: FlippedView {
         for (i, category) in categories.enumerated() {
             let x = left + CGFloat(i % 4) * (right - left) / 4
             let y = CGFloat(i / 4) * 26
-            DesignAssets.categoryDot(category.id).draw(in: NSRect(x: x - 10, y: 184 + y, width: 27, height: 27), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            DesignAssets.categoryDot(category.id, in: categories).draw(in: NSRect(x: x - 10, y: 184 + y, width: 27, height: 27), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
             Theme.drawLine("\(category.name) · \(counts[category.id] ?? 0)", font: .systemFont(ofSize: 10), color: Theme.tertiary, in: NSRect(x: x + 12, y: 187.5 + y, width: (right - left) / 4 - 16, height: 20))
         }
         if records.isEmpty {
@@ -90,13 +90,13 @@ final class CategoryDistribution: FlippedView {
     override func draw(_ dirtyRect: NSRect) {
         for (i, category) in categories.enumerated() {
             let y = CGFloat(i) * 48
-            DesignAssets.categoryDot(category.id).draw(in: NSRect(x: -10, y: y - 3, width: 27, height: 27), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            DesignAssets.categoryDot(category.id, in: categories).draw(in: NSRect(x: -10, y: y - 3, width: 27, height: 27), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
             let count = summary.categoryCounts[category.id] ?? 0
             Theme.drawLine(category.name, font: .systemFont(ofSize: 12), color: Theme.text, in: NSRect(x: 15, y: y, width: 90, height: 21))
             let value = String(format: "%d 次 · %.1f%%", count, Double(count) / Double(max(1, summary.total)) * 100)
             Theme.drawLine(value, font: .systemFont(ofSize: 11), color: Theme.secondary, in: NSRect(x: 100, y: y, width: bounds.width - 100, height: 21), alignment: .right)
             Theme.border.setFill(); NSBezierPath(roundedRect: NSRect(x: 0, y: y + 29, width: bounds.width, height: 4), xRadius: 2, yRadius: 2).fill()
-            Theme.categoryColor(category.id).setFill(); NSBezierPath(roundedRect: NSRect(x: 0, y: y + 29, width: bounds.width * CGFloat(count) / CGFloat(max(1, summary.total)), height: 4), xRadius: 2, yRadius: 2).fill()
+            Theme.categoryColor(category.id, in: categories).setFill(); NSBezierPath(roundedRect: NSRect(x: 0, y: y + 29, width: bounds.width * CGFloat(count) / CGFloat(max(1, summary.total)), height: 4), xRadius: 2, yRadius: 2).fill()
         }
     }
 }

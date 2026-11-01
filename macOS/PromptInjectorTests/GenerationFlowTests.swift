@@ -42,7 +42,10 @@ final class GenerationFlowTests: XCTestCase {
         generator.calls[0].continuation.resume(throwing: URLError(.timedOut))
         try await until { !form.isGenerating }
         XCTAssertEqual(editor.value, initial); XCTAssertTrue(form.root.requiredLabel.stringValue.contains("超时"))
+        let added = try repository.saveDraft(EditorDraft(entry: GenerationTests().entry(), original: nil, newCategoryName: "模型选择"))
         form.generatePrompt(); try await until { generator.calls.count == 2 }
+        XCTAssertEqual(generator.calls[1].categories.last?.id, added.categoryID)
+        XCTAssertEqual(generator.calls[1].categories.count, 6)
         form.cancelGeneration()
         editor.promptText.text.string = "取消后手改"
         editor.textDidChange(Notification(name: NSText.didChangeNotification))
@@ -86,9 +89,9 @@ final class GenerationFlowTests: XCTestCase {
         XCTAssertEqual(restored.value.originalExperience, initial.originalExperience)
         XCTAssertEqual(restored.value.source, initial.source)
         XCTAssertEqual(restored.draft.newCategoryName, "学习")
-        resumed.saveEditor(); try await until { !resumed.isSaving && resumed.root.editor == nil && resumed.root.categoryItems.count == 6 }
+        resumed.saveEditor(); try await until { !resumed.isSaving && resumed.root.editor == nil && resumed.root.categoryItems.count == 7 }
         XCTAssertEqual(try repository.categories().last?.name, "学习")
-        XCTAssertEqual(resumed.root.categoryItems.count, 6)
+        XCTAssertEqual(resumed.root.categoryItems.count, 7)
         XCTAssertEqual(try repository.categories().last?.entryCount, 1)
     }
 }

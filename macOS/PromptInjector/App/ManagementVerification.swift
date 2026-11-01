@@ -102,6 +102,14 @@ extension AppDelegate {
             }
         }
         check("management/reopen-preserves-fields-and-id", loaded == initial)
+        let reading = manager.root.libraryView
+        check("reading/prompt-only-verbatim", reading.document.text.string == initial.prompt)
+        reading.segments.buttons[1].performClick(nil)
+        check("reading/original-source-verbatim", reading.document.text.string == initial.source + "\n\n" + initial.originalExperience)
+        await capture("management-reading-original")
+        reading.segments.buttons[2].performClick(nil)
+        check("reading/explanation-only", reading.document.text.string == initial.explanation)
+        await capture("management-reading-explanation")
         manager.root.libraryView.copyButton.performClick(nil)
         copiedChangeCount = pasteboard.changeCount
         check("management/copy-full-current-prompt", NSPasteboard.general.string(forType: .string) == initial.prompt)
@@ -134,6 +142,7 @@ extension AppDelegate {
         }
         manager.root.all.performClick(nil)
         window.setContentSize(NSSize(width: 1100, height: 720)); window.center()
+        manager.root.libraryView.segments.buttons[0].performClick(nil)
         await capture("management-minimum")
         check("management/minimum-layout-actions-accessible", manager.root.newButton.frame.maxX <= manager.root.band.bounds.width && manager.root.libraryView.copyButton.frame.minX >= 0)
         manager.root.search.field.stringValue = ""
@@ -177,7 +186,19 @@ extension AppDelegate {
                 await capture("management-sixth-statistics")
             }
         }
-        let beforeZoom = window.frame
+        manager.showLibrary(category: nil)
+        await until { manager.selectedEntry != nil }
+        let actualCategories = manager.root.categoryItems.map { PromptCategory(id: $0.category!, name: $0.label, symbol: "folder") }
+        let many = actualCategories + (7...26).map { PromptCategory(id: "scroll-fixture-\($0)", name: "滚动测试 \($0)", symbol: "folder") }
+        manager.root.setCategories(many); manager.root.layoutSubtreeIfNeeded()
+        if let last = manager.root.categoryItems.last, let scroll = last.enclosingScrollView {
+            let fixed = manager.root.all.frame
+            last.scrollToVisible(last.bounds)
+            check("categories/growing-sidebar-scroll", scroll.contentView.bounds.minY > 0 && scroll.documentVisibleRect.contains(last.frame) && manager.root.all.frame == fixed)
+            await capture("management-categories-scroll")
+        } else { check("categories/growing-sidebar-scroll", false) }
+        manager.root.setCategories(actualCategories)
+                let beforeZoom = window.frame
         window.performMiniaturize(nil)
         await until { window.isMiniaturized }
         check("management/native-minimize", window.isMiniaturized)

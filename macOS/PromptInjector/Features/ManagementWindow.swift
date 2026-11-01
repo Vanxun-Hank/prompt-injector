@@ -10,14 +10,15 @@ final class SidebarItem: NSButton {
     let label: String
     let category: String?
     let asset: String?
+    let categories: [PromptCategory]
     var count: Int? { didSet { needsDisplay = true } }
     var selected = false { didSet { needsDisplay = true; setAccessibilityValue(selected ? 1 : 0) } }
     override var isFlipped: Bool { true }
-    init(_ label: String, category: String? = nil, asset: String? = nil) {
-        self.label = label; self.category = category; self.asset = asset
+    init(_ label: String, category: String? = nil, asset: String? = nil, categories: [PromptCategory] = []) {
+        self.label = label; self.category = category; self.asset = asset; self.categories = categories
         super.init(frame: .zero)
         isBordered = false; title = ""; target = self; action = #selector(press)
-        setAccessibilityLabel(label)
+        setAccessibilityLabel(label); toolTip = label
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     @objc private func press() { onPress?() }
@@ -26,16 +27,18 @@ final class SidebarItem: NSButton {
             (selected ? Theme.selection : Theme.band).setFill()
             NSBezierPath(roundedRect: bounds, xRadius: 9, yRadius: 9).fill()
         }
-        let color = category.map(Theme.categoryColor) ?? (selected ? Theme.text : Theme.secondary)
+        let color = category.map { Theme.categoryColor($0, in: categories) } ?? (selected ? Theme.text : Theme.secondary)
         if let category {
-            DesignAssets.categoryDot(category).draw(in: NSRect(x: 2, y: bounds.midY - 13.5, width: 27, height: 27), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            DesignAssets.categoryDot(category, in: categories).draw(in: NSRect(x: 2, y: bounds.midY - 13.5, width: 27, height: 27), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
         } else if let asset, let image = DesignAssets.image(asset) {
             // SVG icons retain the Figma viewBox; tint is applied by AppKit at draw time.
             image.draw(in: NSRect(x: 12, y: bounds.midY - 9, width: 18, height: 18), from: .zero, operation: .sourceOver, fraction: selected ? 1 : 0.68, respectFlipped: true, hints: nil)
         }
-        Theme.drawLine(label, font: .systemFont(ofSize: 13), color: color, in: NSRect(x: category == nil ? 38 : 29, y: 0, width: bounds.width - 58, height: bounds.height))
+        let countWidth = count.map { max(16, (String($0) as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12)]).width) } ?? 0
+        let labelX: CGFloat = category == nil ? 38 : 29
+        Theme.drawLine(label, font: .systemFont(ofSize: 13), color: color, in: NSRect(x: labelX, y: 0, width: bounds.width - labelX - 12 - countWidth - 8, height: bounds.height))
         if let count {
-            Theme.drawLine(String(count), font: .systemFont(ofSize: 12), color: Theme.tertiary, in: NSRect(x: bounds.width - 52, y: 0, width: 40, height: bounds.height), alignment: .right)
+            Theme.drawLine(String(count), font: .systemFont(ofSize: 12), color: Theme.tertiary, in: NSRect(x: bounds.width - 12 - countWidth, y: 0, width: countWidth, height: bounds.height), alignment: .right)
         }
     }
 }
@@ -71,7 +74,7 @@ final class SearchBox: SurfaceView {
     private let categoryScroll = NSScrollView(), categoryBody = FlippedView()
     func setCategories(_ categories: [PromptCategory]) {
         categoryItems.forEach { $0.removeFromSuperview() }
-        categoryItems = categories.map { SidebarItem($0.name, category: $0.id) }
+        categoryItems = categories.map { SidebarItem($0.name, category: $0.id, categories: categories) }
         for (item, category) in zip(categoryItems, categories) { item.count = category.entryCount; categoryBody.addSubview(item) }
         needsLayout = true
     }
@@ -135,60 +138,64 @@ final class SearchBox: SurfaceView {
         [title, subtitle, band, footer].forEach { $0.isHidden = statistics }
         [search, newButton].forEach { $0.isHidden = editing }
         [statusDot, statusLabel, requiredLabel, cancelButton, saveButton].forEach { $0.isHidden = !editing }
+        if page == .library {
+            subtitle.isHidden = true
+            band.layer?.backgroundColor = NSColor.clear.cgColor
+            band.frame = NSRect(x: w - 448, y: 32, width: 416, height: 44)
+            search.frame = NSRect(x: 0, y: 0, width: 360, height: 40)
+            newButton.frame = NSRect(x: 376, y: 0, width: 40, height: 40)
+            title.frame.size.width = max(100, main - 440)
+            libraryView.frame = NSRect(x: 248, y: 112, width: main, height: h - 144)
+            footer.frame = NSRect(x: 248, y: h - 26, width: main, height: 20)
+        } else { band.layer?.backgroundColor = Theme.band.cgColor }
         libraryView.isHidden = page != .library; editor?.isHidden = !editing; dashboard?.isHidden = !statistics
     }
 }
 
 final class ManagementSummaryCell: NSTableCellView {
     override var isFlipped: Bool { true }
-    let heading = Theme.label(size: 14, weight: .medium), summary = Theme.label(size: 12, color: Theme.secondary), metadata = Theme.label(size: 11, color: Theme.tertiary)
-    override init(frame: NSRect) { super.init(frame: frame); [heading, summary, metadata].forEach(addSubview) }
+    let heading = Theme.label(size: 14, weight: .medium), summary = Theme.label(size: 12, color: Theme.secondary)
+    override init(frame: NSRect) { super.init(frame: frame); [heading, summary].forEach(addSubview) }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-    func set(_ value: ManagedSummary, categories: [PromptCategory]) {
+    func set(_ value: ManagedSummary) {
         heading.stringValue = value.summary.title; summary.stringValue = value.summary.summary
-        let name = Theme.categoryName(value.summary.categoryID, in: categories)
-        let text = NSMutableAttributedString(string: name, attributes: [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: Theme.categoryColor(value.summary.categoryID)])
-        metadata.attributedStringValue = text
         toolTip = value.summary.title + "\n" + value.summary.summary
     }
     override func layout() {
-        super.layout(); heading.frame = NSRect(x: 12, y: 12, width: bounds.width - 24, height: 21)
-        summary.frame = NSRect(x: 12, y: 35, width: bounds.width - 24, height: 18); metadata.frame = NSRect(x: 12, y: 55, width: bounds.width - 24, height: 17)
+        super.layout(); heading.frame = NSRect(x: 16, y: 16, width: bounds.width - 32, height: 22)
+        summary.frame = NSRect(x: 16, y: 44, width: bounds.width - 32, height: 20)
     }
 }
 
 @MainActor final class ManagementLibraryView: FlippedView, NSTableViewDataSource, NSTableViewDelegate {
     let listPanel = SurfaceView(), preview = SurfaceView()
-    let listLabel = Theme.label("全部条目", size: 12, color: Theme.secondary)
     let table = NSTableView(), listScroll = NSScrollView()
-    let categoryLabel = Theme.label(size: 14, weight: .medium)
-    let heading = Theme.label(size: 24, weight: .medium), summary = Theme.label(size: 13, color: Theme.secondary)
+    let categoryLabel = Theme.label(size: 13, weight: .medium)
+    let heading = Theme.label(size: 22, weight: .medium), summary = Theme.label(size: 13, color: Theme.secondary)
     private let rule = SurfaceView(color: Theme.border, radius: 0, border: nil)
     let document = TextDocument(), scroll = NSScrollView()
-    let sources = ActionButton(title: "原文与来源", symbol: nil, target: nil, action: nil)
+    let segments = ChoiceSegments(["Prompt", "作者原文", "整理说明"])
     let copyButton = ActionButton(title: "", symbol: "doc.on.doc", target: nil, action: nil), editButton = ActionButton(title: "", symbol: "pencil", target: nil, action: nil)
     var onSelect: ((ManagedSummary) -> Void)?
     private(set) var items: [ManagedSummary] = []
     private var settingSelection = false
     private var entry: PromptEntry?
-    private var showingSources = false
     var categories: [PromptCategory] = [] { didSet { table.reloadData(); setEntry(entry) } }
     override init(frame: NSRect) {
         super.init(frame: frame)
-        addSubview(listPanel); addSubview(preview); listPanel.addSubview(listLabel); listPanel.addSubview(listScroll)
-        [categoryLabel, heading, summary, rule, scroll, sources, copyButton, editButton].forEach(preview.addSubview)
+        addSubview(listPanel); addSubview(preview); listPanel.addSubview(listScroll)
+        [categoryLabel, heading, summary, rule, scroll, segments, copyButton, editButton].forEach(preview.addSubview)
+        for field in [heading, summary] { field.maximumNumberOfLines = 2; field.lineBreakMode = .byTruncatingTail; field.cell?.wraps = true; field.cell?.isScrollable = false }
         table.addTableColumn(NSTableColumn(identifier: .init("entry"))); table.headerView = nil; table.style = .plain
-        table.backgroundColor = .clear; table.rowHeight = 84; table.intercellSpacing = NSSize(width: 0, height: 4)
+        table.backgroundColor = .clear; table.rowHeight = 80; table.intercellSpacing = NSSize(width: 0, height: 4)
         table.focusRingType = .none; table.dataSource = self; table.delegate = self; table.allowsEmptySelection = true
         listScroll.drawsBackground = false; listScroll.hasVerticalScroller = true; listScroll.scrollerStyle = .overlay; listScroll.documentView = table
         scroll.drawsBackground = false; scroll.hasVerticalScroller = true; scroll.scrollerStyle = .overlay; scroll.documentView = document
-        copyButton.outlined = true; editButton.outlined = true; sources.font = .systemFont(ofSize: 12); sources.ink = Theme.secondary
-        sources.image = DesignAssets.image("Down"); sources.imagePosition = .imageTrailing; sources.alignment = .left
+        copyButton.outlined = true; editButton.outlined = true
         copyButton.toolTip = "复制完整 Prompt"; copyButton.setAccessibilityLabel("复制完整 Prompt")
         editButton.toolTip = "编辑条目"; editButton.setAccessibilityLabel("编辑条目")
-        sources.onPress = { [weak self] in
-            guard let self else { return }; self.showingSources.toggle(); self.updateDocument()
-            if self.showingSources { self.document.text.scrollToEndOfDocument(nil) }
+        segments.onSelect = { [weak self] _ in
+            guard let self else { return }; self.updateDocument(); self.scroll.contentView.scroll(to: .zero); self.scroll.reflectScrolledClipView(self.scroll.contentView)
         }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -203,40 +210,59 @@ final class ManagementSummaryCell: NSTableCellView {
     }
     func numberOfRows(in tableView: NSTableView) -> Int { items.count }
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? { PromptRow() }
-    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? { let cell = ManagementSummaryCell(); cell.set(items[row], categories: categories); return cell }
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? { let cell = ManagementSummaryCell(); cell.set(items[row]); return cell }
     func tableViewSelectionDidChange(_ notification: Notification) { if !settingSelection, items.indices.contains(table.selectedRow) { onSelect?(items[table.selectedRow]) } }
     func setEntry(_ value: PromptEntry?) {
-        if entry?.id != value?.id { showingSources = false }
-        entry = value; copyButton.isEnabled = value != nil; editButton.isEnabled = value != nil; sources.isEnabled = value != nil
+        let changedID = entry?.id != value?.id
+        if changedID { segments.selectedIndex = 0 }
+        entry = value; copyButton.isEnabled = value != nil; editButton.isEnabled = value != nil
+        segments.buttons.forEach { $0.isEnabled = value != nil }
         heading.stringValue = value?.title ?? "没有匹配内容"; summary.stringValue = value?.summary ?? ""
+        heading.toolTip = value?.title; summary.toolTip = value?.summary
         categoryLabel.stringValue = value.map { Theme.categoryName($0.categoryID, in: categories) } ?? ""
-        categoryLabel.textColor = value.map { Theme.categoryColor($0.categoryID) } ?? Theme.text
+        categoryLabel.textColor = value.map { Theme.categoryColor($0.categoryID, in: categories) } ?? Theme.text
         updateDocument(); needsLayout = true
+        if changedID { scroll.contentView.scroll(to: .zero) }
     }
     private func updateDocument() {
         let content = NSMutableAttributedString(string: "")
         if let entry {
-            content.append(Theme.body("Prompt\n", size: 14, lineHeight: 26, weight: .medium))
-            content.append(Theme.body("\n" + entry.prompt, size: 15, lineHeight: 28))
-            if !entry.explanation.isEmpty { content.append(Theme.body("\n\n解释\n" + entry.explanation, size: 12, color: Theme.secondary, lineHeight: 24)) }
-            if showingSources { content.append(Theme.body("\n\n原始经验\n" + entry.originalExperience + "\n\n来源\n" + entry.source, size: 13, lineHeight: 24)) }
+            switch segments.selectedIndex {
+            case 1:
+                if !entry.source.isEmpty {
+                    let source = NSMutableAttributedString(attributedString: Theme.body(entry.source, size: 13, color: Theme.secondary, lineHeight: 24))
+                    if let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) {
+                        for match in detector.matches(in: entry.source, range: NSRange(location: 0, length: (entry.source as NSString).length)) {
+                            if let url = match.url, ["http", "https"].contains(url.scheme?.lowercased() ?? "") { source.addAttribute(.link, value: url, range: match.range) }
+                        }
+                    }
+                    content.append(source); content.append(Theme.body("\n\n"))
+                }
+                content.append(Theme.body(entry.originalExperience, size: 16, lineHeight: 32))
+            case 2: content.append(Theme.body(entry.explanation, size: 14, lineHeight: 28))
+            default: content.append(Theme.body(entry.prompt, size: 16, lineHeight: 32))
+            }
         }
         document.set(content, width: max(100, scroll.contentSize.width))
     }
     override func layout() {
-        super.layout(); let listWidth: CGFloat = bounds.width >= 1100 ? 420 : max(280, bounds.width * 0.36)
+        super.layout(); let listWidth: CGFloat = bounds.width >= 1100 ? 352 : 280
         listPanel.frame = NSRect(x: 0, y: 0, width: listWidth, height: bounds.height)
         preview.frame = NSRect(x: listWidth + 20, y: 0, width: bounds.width - listWidth - 20, height: bounds.height)
-        listLabel.frame = NSRect(x: 16, y: 16, width: listWidth - 32, height: 28)
-        listScroll.frame = NSRect(x: 16, y: 48, width: listWidth - 32, height: bounds.height - 64)
+        listScroll.frame = NSRect(x: 12, y: 12, width: listWidth - 24, height: bounds.height - 24)
         table.tableColumns.first?.width = listScroll.contentSize.width
-        let w = preview.bounds.width, h = preview.bounds.height
-        categoryLabel.frame = NSRect(x: 24, y: 24, width: w - 48, height: 24)
-        heading.frame = NSRect(x: 24, y: 64, width: w - 48, height: 34); summary.frame = NSRect(x: 24, y: 112, width: w - 48, height: 22)
-        rule.frame = NSRect(x: 24, y: 150, width: w - 48, height: 1)
-        scroll.frame = NSRect(x: 24, y: 166, width: w - 48, height: h - 242)
-        sources.frame = NSRect(x: 24, y: h - 64, width: 128, height: 40)
-        copyButton.frame = NSRect(x: w - 114, y: h - 64, width: 40, height: 40); editButton.frame = NSRect(x: w - 64, y: h - 64, width: 40, height: 40)
+        let w = preview.bounds.width, h = preview.bounds.height, pad: CGFloat = bounds.width >= 1100 ? 32 : 24
+        let width = w - 2 * pad
+        categoryLabel.frame = NSRect(x: pad, y: 24, width: width, height: 20)
+        func place(_ field: NSTextField, y: CGFloat, lineHeight: CGFloat) {
+            let natural = field.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: width, height: .greatestFiniteMagnitude)).height ?? lineHeight
+            field.frame = NSRect(x: pad, y: y, width: width, height: min(lineHeight * 2, max(lineHeight, ceil(natural))))
+        }
+        place(heading, y: 56, lineHeight: 32); place(summary, y: heading.frame.maxY + 12, lineHeight: 22)
+        segments.frame = NSRect(x: pad, y: summary.frame.maxY + 24, width: min(336, width), height: 44)
+        rule.frame = NSRect(x: pad, y: segments.frame.maxY + 24, width: width, height: 1)
+        scroll.frame = NSRect(x: pad, y: rule.frame.maxY + 24, width: min(640, width), height: max(40, h - 112 - rule.frame.maxY))
+        copyButton.frame = NSRect(x: w - pad - 90, y: h - 64, width: 40, height: 40); editButton.frame = NSRect(x: w - pad - 40, y: h - 64, width: 40, height: 40)
         document.arrange(width: scroll.contentSize.width)
     }
 }
@@ -355,10 +381,9 @@ final class ManagementSummaryCell: NSTableCellView {
             guard let self, self.queryGeneration == generation else { return }
             switch result {
             case .success(let values):
-                self.root.libraryView.listLabel.stringValue = self.selectedCategory.map { Theme.categoryName($0, in: self.counts) } ?? "全部条目"
                 self.root.libraryView.setItems(values, selecting: preserve)
                 self.root.subtitle.stringValue = "\(values.count) 条内容  ·  \(self.counts.count) 个分类"
-            case .failure(let error): self.root.libraryView.setItems([], selecting: nil); self.root.subtitle.stringValue = error.localizedDescription
+            case .failure(let error): self.root.libraryView.setItems([], selecting: nil); self.root.footer.stringValue = error.localizedDescription
             }
         }
     }

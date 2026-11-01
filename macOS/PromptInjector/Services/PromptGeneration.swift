@@ -14,6 +14,10 @@ struct GeneratedPrompt: Codable, Equatable {
               Set(object.keys) == Set(["title", "summary", "explanation", "prompt", "categoryID", "newCategoryName"]) else { throw GenerationFailure.invalidOutput }
         let value = try JSONDecoder().decode(Self.self, from: data)
         try value.validate(categories: categories)
+        if let name = value.newCategoryName,
+           let existing = categories.first(where: { PromptCategory.nameKey($0.name) == PromptCategory.nameKey((try? PromptCategory.normalizedName(name)) ?? name) }) {
+            return Self(title: value.title, summary: value.summary, explanation: value.explanation, prompt: value.prompt, categoryID: existing.id, newCategoryName: nil)
+        }
         return value
     }
     func validate(categories: [PromptCategory]) throws {

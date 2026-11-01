@@ -111,7 +111,7 @@ final class EditorText: SurfaceView {
     func textDidChange(_ notification: Notification) { onChange?() }
     private func updateCategory() {
         categoryButton.title = creatingCategory ? "新增分类" : Theme.categoryName(category, in: categories)
-        dot?.removeFromSuperview(); let next = CategoryDot(category: category); categoryBox.addSubview(next); dot = next
+        dot?.removeFromSuperview(); let next = CategoryDot(category: category, categories: categories); categoryBox.addSubview(next); dot = next
         needsLayout = true
     }
     private func chooseCategory() {

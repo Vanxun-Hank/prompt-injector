@@ -32,9 +32,11 @@ def validate_ui_report(report):
                 'capture/management-save-error', 'capture/management-statistics', 'capture/management-minimum',
                 'generation/candidate-is-editable', 'generation/candidate-does-not-overwrite', 'generation/adoption-preserves-original-source',
                 'categories/new-name-entire-control-visible', 'categories/sixth-sidebar-preview', 'categories/sixth-launcher-list', 'categories/sixth-launcher-full-prompt', 'categories/sixth-statistics',
+                'reading/prompt-only-verbatim', 'reading/original-source-verbatim', 'reading/explanation-only', 'categories/growing-sidebar-scroll',
+                'capture/management-reading-original', 'capture/management-reading-explanation', 'capture/management-categories-scroll',
                 'capture/management-candidate', 'capture/management-new-category', 'capture/management-sixth-statistics'}
     captures = [c for c in checks if str(c.get('name', '')).startswith('capture/')]
-    return (report.get('passed') is True and len(checks) >= 85 and len(captures) == 22
+    return (report.get('passed') is True and len(checks) >= 85 and len(captures) == 25
             and required <= names and all(c.get('passed') is True for c in checks))
 
 def main():

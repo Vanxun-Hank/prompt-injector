@@ -8,6 +8,13 @@ final class GenerationTests: XCTestCase {
     func entry(_ id: String = UUID().uuidString) -> PromptEntry {
         .init(id: id, categoryID: "coding", title: "手工标题", summary: "手工简述", originalExperience: "能复现的 bug，先写失败测试，再做最小修复。\n保留条件😀", source: "用户粘贴 https://example.com/method", explanation: "手工解释", prompt: "手工 Prompt")
     }
+    func testSuggestedExistingNameResolvesToStableIDBeforeReview() throws {
+        let categories = PromptCategory.initial + [.init(id: "sixth", name: "Agent 文档", symbol: "folder")]
+        let result = GeneratedPrompt(title: "维护约定", summary: "更新规则时", explanation: "保留必要约定", prompt: "维护项目约定。", categoryID: nil, newCategoryName: "  Ａｇｅｎｔ 文档  ")
+        let decoded = try GeneratedPrompt.decode(JSONSerialization.data(withJSONObject: ["title": result.title, "summary": result.summary, "explanation": result.explanation, "prompt": result.prompt, "categoryID": NSNull(), "newCategoryName": result.newCategoryName!]), categories: categories)
+        XCTAssertEqual(decoded.categoryID, "sixth"); XCTAssertNil(decoded.newCategoryName)
+        XCTAssertEqual(decoded.prompt, result.prompt)
+    }
     func testStructuredOutputRejectsMissingExtraUnknownAndAmbiguousFields() throws {
         let data = try JSONEncoder().encode(candidate)
         var json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])

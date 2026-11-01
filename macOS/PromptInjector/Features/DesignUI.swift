@@ -1,9 +1,11 @@
 import AppKit
 
 enum DesignAssets {
-    static func categoryDot(_ id: String) -> NSImage {
-        image("Dot-" + id, template: false) ?? NSImage(size: NSSize(width: 27, height: 27), flipped: false) { _ in
-            Theme.categoryColor(id).setFill()
+    static func categoryDot(_ id: String, in categories: [PromptCategory]) -> NSImage {
+        let index = categories.firstIndex { $0.id == id }
+        let assetID = index.map { PromptCategory.initial[$0 % PromptCategory.initial.count].id } ?? id
+        return image("Dot-" + assetID, template: false) ?? NSImage(size: NSSize(width: 27, height: 27), flipped: false) { _ in
+            Theme.categoryColor(id, in: categories).setFill()
             NSBezierPath(ovalIn: NSRect(x: 10, y: 10, width: 7, height: 7)).fill()
             return true
         }
@@ -67,9 +69,9 @@ final class LogoView: FlippedView {
 final class CategoryDot: FlippedView {
     private let image = NSImageView()
     override var wantsDefaultClipping: Bool { false }
-    init(category: String) {
+    init(category: String, categories: [PromptCategory]) {
         super.init(frame: NSRect(x: 0, y: 0, width: 7, height: 7))
-        image.image = DesignAssets.categoryDot(category)
+        image.image = DesignAssets.categoryDot(category, in: categories)
         image.imageScaling = .scaleNone
         addSubview(image)
     }
@@ -135,8 +137,10 @@ extension Theme {
     static func hex(_ value: UInt32) -> NSColor { NSColor(srgbRed: CGFloat((value >> 16) & 255) / 255, green: CGFloat((value >> 8) & 255) / 255, blue: CGFloat(value & 255) / 255, alpha: 1) }
     static let canvas = hex(0x0B0B0B), shell = hex(0x101010), panel = hex(0x151515)
     static let band = hex(0x1D1D1D), selection = hex(0x292929), border = hex(0x2B2B2B)
-    static func categoryColor(_ id: String) -> NSColor {
-        hex(["requirements": 0xF5D975, "coding": 0x99A8FF, "debugging": 0xFFAA85, "review": 0xC5A0FF, "release": 0xF699C8][id] ?? 0xF4F4F2)
+    static func categoryColor(_ id: String, in categories: [PromptCategory]) -> NSColor {
+        let palette: [UInt32] = [0xF5D975, 0x99A8FF, 0xFFAA85, 0xC5A0FF, 0xF699C8]
+        guard let index = categories.firstIndex(where: { $0.id == id }) else { return Theme.text }
+        return hex(palette[index % palette.count])
     }
     static func categoryName(_ id: String, in categories: [PromptCategory]) -> String { categories.first { $0.id == id }?.name ?? id }
     static func glow(_ label: NSTextField, color: NSColor) {

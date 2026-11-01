@@ -50,3 +50,10 @@
 | PI-017 | v0.3 新增整理/凭证控件放入元信息滚动内容后，最小编辑窗口初始看不到操作；采用新分类后未等待布局就滚动，名称输入框也会部分裁切 | 整理和钥匙固定在信息面板底部，字段单独滚动；采用新分类先布局再让整个名称输入框可见 | `GenerationTests.testMinimumEditorKeepsGenerationAndKeychainActionsVisible`：旧布局实跑 4 处断言失败，修复后通过；原生 `categories/new-name-entire-control-visible` 与候选/新分类截图。真实 API 不在此视觉测试范围 |
 
 | PI-018 | 保存任意条目时无条件清除唯一 editor 草稿槽，会误删另一条未完成草稿；批量实验复用了正式 repository，暴露了该所有权缺失 | 仅当草稿 entry.id 与本次保存 ID 一致时，在保存事务内清除。其他草稿原样保留 | `ManagementTests.testSavingAnotherEntryPreservesUnrelatedEditorDraft` 修复前实测失败，修复后通过；20 条真实实验前后比对正式伴随库草稿与使用事件不变 |
+
+
+## 2026-11-01 · 阅读 V2 分类颜色回归
+
+| 编号 | 根因 | 修复范围 | 验证 |
+| --- | --- | --- | --- |
+| PI-019 | 动态分类已贯通保存与查询，但 Theme / Dot 仍按五个初始 ID 查色，新增 ID 落到中性色 | 按 SQLite 完整分类顺序循环五色；侧栏、详情、编辑选择、浮窗与统计统一传入实际列表，复用现有柔光资源 | `NavigationTests.testGrowingCategoriesCycleColorsAndScrollWithoutMovingNavigation` 检查第六类颜色／圆点、26 分类滚动及固定主导航；完整原生检查通过。根因由旧源码确认，未运行修复前用例；当前实拍显示正式第六黄、第七蓝 |
