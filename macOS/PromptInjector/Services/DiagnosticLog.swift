@@ -20,6 +20,9 @@ enum DiagnosticEvent: String, Codable, Sendable {
     case storageSaveStarted = "storage.save_started"
     case managementOpened = "management.opened", managementSave = "management.save"
     case libraryRefreshed = "library.refreshed", libraryLoadDiscarded = "library.load_discarded"
+    case categoryCreated = "category.created"
+    case generationStarted = "generation.started", generationFinished = "generation.finished", generationCancelled = "generation.cancelled", generationDiscarded = "generation.discarded", generationFailed = "generation.failed"
+    case candidateAdopted = "generation.adopted", credentialSaved = "credential.saved", credentialFailed = "credential.failed"
     case probe = "diagnostics.probe"
 }
 
@@ -113,7 +116,7 @@ final class DiagnosticLog: @unchecked Sendable {
     init(directory: URL, build: BuildIdentity = .current, sessionID: UUID = UUID(), maxFileBytes: Int = 1_048_576, archiveCount: Int = 3, mode: String? = nil) {
         directoryURL = directory; self.build = build; self.sessionID = sessionID
         self.maxFileBytes = max(2048, maxFileBytes); self.archiveCount = max(0, archiveCount)
-        self.mode = mode ?? (CommandLine.arguments.contains("--verify-ui") ? "ui-verification" : CommandLine.arguments.contains("--verify-termination") ? "headless-verification" : "application")
+        self.mode = mode ?? (CommandLine.arguments.contains("--verify-ui") ? "ui-verification" : CommandLine.arguments.contains("--verify-termination") ? "headless-verification" : (CommandLine.arguments.contains("--verify-generation") || CommandLine.arguments.contains("--experiment-experiences")) ? "api-verification" : "application")
         queue.setSpecific(key: queueKey, value: true)
     }
 

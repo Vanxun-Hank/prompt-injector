@@ -46,3 +46,7 @@
 用户明确普通主输入框才是 Stage 1 目标，这个问题延期，不继续阻挡阶段交付。`InsertionObservationTests` 确保差异诊断不能绕过严格全文校验：忽略空行后相等并不算成功，前缀缺失或空白被裁剪同样不通过。
 
 后续修复在这里记录最短复现、根因、修复边界、测试函数及未覆盖范围；实际源码历史以 Git commit 为准。
+
+| PI-017 | v0.3 新增整理/凭证控件放入元信息滚动内容后，最小编辑窗口初始看不到操作；采用新分类后未等待布局就滚动，名称输入框也会部分裁切 | 整理和钥匙固定在信息面板底部，字段单独滚动；采用新分类先布局再让整个名称输入框可见 | `GenerationTests.testMinimumEditorKeepsGenerationAndKeychainActionsVisible`：旧布局实跑 4 处断言失败，修复后通过；原生 `categories/new-name-entire-control-visible` 与候选/新分类截图。真实 API 不在此视觉测试范围 |
+
+| PI-018 | 保存任意条目时无条件清除唯一 editor 草稿槽，会误删另一条未完成草稿；批量实验复用了正式 repository，暴露了该所有权缺失 | 仅当草稿 entry.id 与本次保存 ID 一致时，在保存事务内清除。其他草稿原样保留 | `ManagementTests.testSavingAnotherEntryPreservesUnrelatedEditorDraft` 修复前实测失败，修复后通过；20 条真实实验前后比对正式伴随库草稿与使用事件不变 |

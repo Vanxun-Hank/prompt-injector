@@ -77,7 +77,7 @@ final class NavigationTests: XCTestCase {
     func testSeedContentHasDistinctIDsAndRequiredFields() throws {
         let entries = try PromptSeed.entries()
         XCTAssertEqual(Set(entries.map(\.id)).count, entries.count)
-        for category in PromptCategory.all { XCTAssertFalse(entries.filter { $0.categoryID == category.id }.isEmpty) }
+        for category in PromptCategory.initial { XCTAssertFalse(entries.filter { $0.categoryID == category.id }.isEmpty) }
         for entry in entries {
             XCTAssertFalse(entry.summary.isEmpty)
             XCTAssertFalse(entry.originalExperience.isEmpty)

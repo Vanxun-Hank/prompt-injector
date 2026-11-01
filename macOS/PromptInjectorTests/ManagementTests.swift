@@ -58,6 +58,13 @@ final class ManagementTests: XCTestCase {
         XCTAssertEqual(try repo().editorDraft(), EditorDraft(entry: changed, original: original))
         try repo().discardDraft(); XCTAssertNil(try repo().editorDraft())
     }
+    func testSavingAnotherEntryPreservesUnrelatedEditorDraft() throws {
+        let repository = repo()
+        let draft = entry(id: "unfinished-editor", title: "尚未保存的私人编辑")
+        try repository.storeDraft(draft, original: nil)
+        try repository.save(entry(id: "experiment-result"), replacing: nil)
+        XCTAssertEqual(try repository.editorDraft()?.entry, draft)
+    }
     func testSearchIsLiteralScopedAndDoesNotSearchBody() throws {
         let repository = repo(); try repository.save(entry(), replacing: nil)
         XCTAssertEqual(try repository.managedSummaries(category: "coding", query: "%_").count, 1)

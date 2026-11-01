@@ -1,6 +1,13 @@
 import AppKit
 
 enum DesignAssets {
+    static func categoryDot(_ id: String) -> NSImage {
+        image("Dot-" + id, template: false) ?? NSImage(size: NSSize(width: 27, height: 27), flipped: false) { _ in
+            Theme.categoryColor(id).setFill()
+            NSBezierPath(ovalIn: NSRect(x: 10, y: 10, width: 7, height: 7)).fill()
+            return true
+        }
+    }
     private static var cache: [String: NSImage] = [:]
     static func image(_ name: String, template: Bool = true) -> NSImage? {
         if cache[name] == nil {
@@ -62,7 +69,7 @@ final class CategoryDot: FlippedView {
     override var wantsDefaultClipping: Bool { false }
     init(category: String) {
         super.init(frame: NSRect(x: 0, y: 0, width: 7, height: 7))
-        image.image = DesignAssets.image("Dot-" + category, template: false)
+        image.image = DesignAssets.categoryDot(category)
         image.imageScaling = .scaleNone
         addSubview(image)
     }
@@ -131,7 +138,7 @@ extension Theme {
     static func categoryColor(_ id: String) -> NSColor {
         hex(["requirements": 0xF5D975, "coding": 0x99A8FF, "debugging": 0xFFAA85, "review": 0xC5A0FF, "release": 0xF699C8][id] ?? 0xF4F4F2)
     }
-    static func categoryName(_ id: String) -> String { PromptCategory.all.first { $0.id == id }?.name ?? id }
+    static func categoryName(_ id: String, in categories: [PromptCategory]) -> String { categories.first { $0.id == id }?.name ?? id }
     static func glow(_ label: NSTextField, color: NSColor) {
         label.textColor = color; label.wantsLayer = true
         let shadow = NSShadow(); shadow.shadowColor = color.withAlphaComponent(0.55); shadow.shadowBlurRadius = 3; shadow.shadowOffset = .zero

@@ -23,6 +23,8 @@ struct UsageSummary {
 }
 
 final class UsageChart: FlippedView {
+    var categories: [PromptCategory] = [] { didSet { needsDisplay = true } }
+    var legendRows: Int { max(1, (categories.count + 3) / 4) }
     var records: [UsageRecord] = [] { didSet { needsDisplay = true } }
     var start = Calendar.current.startOfDay(for: Date()) { didSet { needsDisplay = true } }
     var end = Date() { didSet { needsDisplay = true } }
@@ -30,9 +32,9 @@ final class UsageChart: FlippedView {
         let left: CGFloat = 36, right = bounds.width - 6, top: CGFloat = 20, baseline: CGFloat = 148
         let span = max(1, end.timeIntervalSince(start))
         let days = max(1, Int(ceil(span / 86400))), buckets = max(2, min(30, days))
-        var series = Array(repeating: Array(repeating: 0.0, count: buckets), count: 5)
+        var series = Array(repeating: Array(repeating: 0.0, count: buckets), count: categories.count)
         for record in records {
-            guard let cat = PromptCategory.all.firstIndex(where: { $0.id == record.categoryID }) else { continue }
+            guard let cat = categories.firstIndex(where: { $0.id == record.categoryID }) else { continue }
             let index = min(buckets - 1, max(0, Int(record.date.timeIntervalSince(start) / span * Double(buckets))))
             series[cat][index] += 1
         }
@@ -52,7 +54,7 @@ final class UsageChart: FlippedView {
             }
         }
         var accumulated = Array(repeating: 0.0, count: buckets)
-        for (i, category) in PromptCategory.all.enumerated() {
+        for (i, category) in categories.enumerated() {
             let lower = points(accumulated)
             for j in 0..<buckets { accumulated[j] += series[i][j] }
             let upper = points(accumulated), area = NSBezierPath()
@@ -69,10 +71,11 @@ final class UsageChart: FlippedView {
             value.draw(at: NSPoint(x: min(right - 28, x), y: 160), withAttributes: attrs)
         }
         let counts = UsageSummary(records: records).categoryCounts
-        for (i, category) in PromptCategory.all.enumerated() {
-            let x = left + CGFloat(i) * (right - left) / 5
-            DesignAssets.image("Dot-" + category.id, template: false)?.draw(in: NSRect(x: x - 10, y: 184, width: 27, height: 27), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
-            Theme.drawLine("\(category.name) · \(counts[category.id] ?? 0)", font: .systemFont(ofSize: 10), color: Theme.tertiary, in: NSRect(x: x + 12, y: 187.5, width: (right - left) / 5 - 16, height: 20))
+        for (i, category) in categories.enumerated() {
+            let x = left + CGFloat(i % 4) * (right - left) / 4
+            let y = CGFloat(i / 4) * 26
+            DesignAssets.categoryDot(category.id).draw(in: NSRect(x: x - 10, y: 184 + y, width: 27, height: 27), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            Theme.drawLine("\(category.name) · \(counts[category.id] ?? 0)", font: .systemFont(ofSize: 10), color: Theme.tertiary, in: NSRect(x: x + 12, y: 187.5 + y, width: (right - left) / 4 - 16, height: 20))
         }
         if records.isEmpty {
             let empty = "暂无使用记录" as NSString
@@ -82,11 +85,12 @@ final class UsageChart: FlippedView {
 }
 
 final class CategoryDistribution: FlippedView {
+    var categories: [PromptCategory] = [] { didSet { needsDisplay = true } }
     var summary = UsageSummary(records: []) { didSet { needsDisplay = true } }
     override func draw(_ dirtyRect: NSRect) {
-        for (i, category) in PromptCategory.all.enumerated() {
+        for (i, category) in categories.enumerated() {
             let y = CGFloat(i) * 48
-            DesignAssets.image("Dot-" + category.id, template: false)?.draw(in: NSRect(x: -10, y: y - 3, width: 27, height: 27), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            DesignAssets.categoryDot(category.id).draw(in: NSRect(x: -10, y: y - 3, width: 27, height: 27), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
             let count = summary.categoryCounts[category.id] ?? 0
             Theme.drawLine(category.name, font: .systemFont(ofSize: 12), color: Theme.text, in: NSRect(x: 15, y: y, width: 90, height: 21))
             let value = String(format: "%d 次 · %.1f%%", count, Double(count) / Double(max(1, summary.total)) * 100)
@@ -148,6 +152,7 @@ final class UsageTableCell: NSTableCellView {
         table.intercellSpacing = .zero
         tableScroll.drawsBackground = false; tableScroll.hasVerticalScroller = true; tableScroll.scrollerStyle = .overlay; tableScroll.documentView = table
         NotificationCenter.default.addObserver(self, selector: #selector(usageChanged), name: .promptUsageChanged, object: library)
+        NotificationCenter.default.addObserver(self, selector: #selector(usageChanged), name: .promptLibraryChanged, object: library)
         reload()
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -157,6 +162,14 @@ final class UsageTableCell: NSTableCellView {
         generation += 1; let token = generation, now = Date(), selectedCategory = category
         let days = [7, 30, 90, 0][range.selectedIndex]
         let start = days == 0 ? nil : Calendar.current.date(byAdding: .day, value: 1 - days, to: Calendar.current.startOfDay(for: now))
+        library.load(.categories) { [weak self] result in
+            guard let self, self.generation == token else { return }
+            guard case .success(.categories(let categories)) = result else { self.footer.stringValue = "无法读取分类，请重试。"; return }
+            self.chart.categories = categories; self.distribution.categories = categories
+            self.loadUsage(since: start, now: now, selectedCategory: selectedCategory, token: token)
+        }
+    }
+    private func loadUsage(since start: Date?, now: Date, selectedCategory: String?, token: Int) {
         library.usage(since: start) { [weak self] result in
             guard let self, self.generation == token else { return }
             switch result {
@@ -170,7 +183,7 @@ final class UsageTableCell: NSTableCellView {
                 self.chart.start = from; self.chart.end = now; self.chart.records = filtered
                 let f = DateFormatter(); f.dateFormat = "yyyy.MM.dd"
                 self.dateLabel.stringValue = f.string(from: from) + " — " + f.string(from: now)
-                self.heading.stringValue = selectedCategory.map { "使用统计 · " + Theme.categoryName($0) } ?? "使用统计"
+                self.heading.stringValue = selectedCategory.map { "使用统计 · " + Theme.categoryName($0, in: self.chart.categories) } ?? "使用统计"
                 for (i, count) in [summary.total, summary.insertions, summary.copies, summary.promptCount].enumerated() { self.cards[i].2.stringValue = String(count) }
                 let dayCount = max(1, Calendar.current.dateComponents([.day], from: from, to: now).day! + 1)
                 self.cards[0].3.stringValue = String(format: "日均 %.1f 次", Double(summary.total) / Double(dayCount))
@@ -200,7 +213,10 @@ final class UsageTableCell: NSTableCellView {
     }
     override func layout() {
         super.layout(); scroll.frame = bounds; let width = scroll.contentSize.width, main = width - 64
-        doc.frame = NSRect(x: 0, y: 0, width: width, height: max(footer.stringValue.isEmpty ? 980 : 1020, bounds.height))
+        let extraLegend = CGFloat(max(0, chart.legendRows - 1)) * 26
+        let distributionHeight = max(240, CGFloat(distribution.categories.count) * 48)
+        let panelHeight = max(368, distributionHeight + 104)
+        doc.frame = NSRect(x: 0, y: 0, width: width, height: max(580 + extraLegend + panelHeight + 72, bounds.height))
         heading.frame = NSRect(x: 32, y: 32, width: main - 312, height: 36); dateLabel.frame = NSRect(x: 32, y: 70, width: main, height: 18)
         range.frame = NSRect(x: width - 328, y: 32, width: 296, height: 40)
         let cardWidth = (main - 48) / 4
@@ -209,15 +225,15 @@ final class UsageTableCell: NSTableCellView {
             card.1.frame = NSRect(x: 20, y: 20, width: cardWidth - 40, height: 20)
             card.2.frame = NSRect(x: 20, y: 48, width: cardWidth - 40, height: 42); card.3.frame = NSRect(x: 20, y: 94, width: cardWidth - 40, height: 18)
         }
-        trend.frame = NSRect(x: 32, y: 260, width: main, height: 300)
+        trend.frame = NSRect(x: 32, y: 260, width: main, height: 300 + extraLegend)
         trendLabel.frame = NSRect(x: 24, y: 24, width: 250, height: 24); trendUnit.frame = NSRect(x: main - 124, y: 28, width: 100, height: 18)
-        chart.frame = NSRect(x: 24, y: 64, width: main - 48, height: 216)
+        chart.frame = NSRect(x: 24, y: 64, width: main - 48, height: 216 + extraLegend)
         let dw = min(360, max(260, main * 0.31)), rw = main - dw - 20
-        ranksPanel.frame = NSRect(x: 32, y: 580, width: rw, height: 368); distributionPanel.frame = NSRect(x: 52 + rw, y: 580, width: dw, height: 368)
+        ranksPanel.frame = NSRect(x: 32, y: 580 + extraLegend, width: rw, height: panelHeight); distributionPanel.frame = NSRect(x: 52 + rw, y: 580 + extraLegend, width: dw, height: panelHeight)
         ranksLabel.frame = NSRect(x: 16, y: 20, width: rw - 90, height: 24); rankCount.frame = NSRect(x: rw - 70, y: 24, width: 54, height: 18)
         tableScroll.frame = NSRect(x: 16, y: 60, width: rw - 32, height: 292)
         for (column, columnWidth) in zip(table.tableColumns, [max(120, rw - 328), 65, 65, 65, 100]) { column.width = columnWidth }
         distributionLabel.frame = NSRect(x: 24, y: 24, width: dw - 48, height: 24)
-        distribution.frame = NSRect(x: 24, y: 76, width: dw - 48, height: 240); footer.frame = NSRect(x: 32, y: 968, width: main, height: 20)
+        distribution.frame = NSRect(x: 24, y: 76, width: dw - 48, height: distributionHeight); footer.frame = NSRect(x: 32, y: 600 + extraLegend + panelHeight, width: main, height: 20)
     }
 }

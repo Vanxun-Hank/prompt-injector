@@ -10,7 +10,7 @@
 
 - 已实现：Swift + AppKit、Swift Package Manager；SQLite 本地库与首次导入用 JSON 种子；UserDefaults 保存窗口几何与快捷键选择。
 - Stage 1 已有 SQLite 本地内容与后台分层读取；已完成当前环境下的离线、未授权、目标失效实测与初步性能基线。SwiftUI 仅在需要时使用，当前界面为 AppKit。
-- Stage 3：Go + chi 连接一个待选模型服务，提供经验整理。
+- Stage 3：Swift 客户端直接请求 DeepSeek API，Keychain 保存 API key，无中转服务器。
 - Stage 4：PostgreSQL 正式内容，SQLite 保留离线缓存与草稿。
 
 ## Users
@@ -27,9 +27,9 @@
 
 已接入开发版的手动维护：独立管理窗口 → 手动填写各字段／本地草稿 → 保存 → 浮窗显示更新。管理页支持标题与简述搜索、真实使用次数统计；原生新版验收状态见 [移植记录](docs/figma-integration.md)。
 
-计划中的整理：粘贴经验 → 本地草稿 → LLM 整理候选 → 人工检查修改 → 保存。
+本轮整理流程：粘贴经验 → 本地草稿 → LLM 整理候选 → 人工检查修改 → 保存。
 
-固定分类：需求对接、编码、排查、审查、发布。
+初始分类：需求对接、编码、排查、审查、发布，保留原 ID；分类来自 SQLite，可在编辑器新增和选择。
 
 ## Capabilities and Constraints
 
@@ -61,4 +61,4 @@
 
 ## Open Decisions
 
-首个模型服务、部署地点、更新延迟与内存预算待确定；macOS 14、其他应用兼容性及大样本/长期性能待验证。question 框兼容性按用户决定延期。
+首个模型服务已选 DeepSeek，不部署中转；模型为 V4.1 Flash 1017（官方别名 deepseek-flash），启用 high 思考。更新延迟与内存预算待确定；macOS 14、其他应用兼容性及大样本/长期性能待验证。question 框兼容性按用户决定延期。

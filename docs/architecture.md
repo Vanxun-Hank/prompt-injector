@@ -84,7 +84,11 @@ Stage 1 已用 SQLite repository 取代示例加载器：分类查询不读条�
 
 Stage 2 当前开发版已接入独立管理窗口、事务新增／编辑、管理页搜索、草稿与使用统计。完整验收状态见 [figma-integration.md](figma-integration.md)。JSON 导入导出、删除和浮窗搜索尚未实现；不把测试中的 JSON 字段往返当成产品导入导出功能。
 
-Stage 3 增加本地 Draft 和 Go + chi 整理接口。原文先持久化，手工编辑稿和生成候选分开保存，由用户选择采用候选。
+Stage 3 改为客户端直连 DeepSeek：`PromptGenerating` / `DeepSeekClient` 用 URLSession 异步请求，Keychain 保存凭证，不设中转。点击整理先经 PromptLibrary 串行队列保存 EditorDraft，再读取当前分类并发请求。JSON 模式加本地字段、长度、分类互斥与 ID 校验；来源和原文不在返回结构中，不能被模型回写。网络响应、凭证、正文和来源都不记日志。
+
+EditorDraft 在原 JSON payload 增加可选 newCategoryName 与 candidate，旧草稿仍能解码。请求绑定 operationID、编辑器实例和快照；编辑、切页、取消、保存、关闭、退出使请求失效。只匹配当前请求的响应可存候选，采用候选是显式操作，原文和来源保持原样。原有手工编辑和候选一起存伴随库，退出继续排空队列。
+
+分类直接读 categories 表；PromptCategory.initial 只负责种子和隔离内存夹具。新增分类在条目保存事务内去重并分配 UUID，沿用 v1 表结构；同事务失败不会遗留分类。管理侧栏可滚动；编辑菜单、浮窗、历史使用校验、图表系列、图例和分布都使用数据库分类。新分类用原生默认圆点、中性色及 folder 符号，无专属资源。
 
 Stage 4 才增加 PostgreSQL、版本、删除标记与同步游标。成功刷新后原子切换缓存，冲突和失败明确反馈。计划目录不等于已创建服务。
 

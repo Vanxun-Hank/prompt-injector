@@ -21,7 +21,9 @@ class SuiteReportTests(unittest.TestCase):
                   'management/native-fullscreen-space','management/native-fullscreen-exit',
                   'management/regular-application','application/branded-icon','application/transparent-icon-canvas',
                   'keyboard/blocked-command-return-no-route','keyboard/recovered-command-return-routes']
-        names += ['capture/management-'+n for n in ['library','editor','original','save-error','statistics','minimum']]
+        names += ['capture/management-'+n for n in ['library','editor','original','save-error','statistics','minimum','candidate','new-category','sixth-statistics']]
+        names += ['generation/candidate-is-editable', 'generation/candidate-does-not-overwrite', 'generation/adoption-preserves-original-source',
+                  'categories/new-name-entire-control-visible', 'categories/sixth-sidebar-preview', 'categories/sixth-launcher-list', 'categories/sixth-launcher-full-prompt', 'categories/sixth-statistics']
         names += [f'check/{i}' for i in range(90-len(names))]
         return {'passed':True,'checks':[{'name':n,'passed':True} for n in names]}
     def testFailingAnimationCannotBeHiddenByTopLevelPassedFlag(self):
@@ -36,4 +38,9 @@ class SuiteReportTests(unittest.TestCase):
     def testMissingManagementEvidenceCannotReuseOldLauncherPass(self):
         report=self.valid_report()
         report['checks']=[c for c in report['checks'] if c['name']!='management/save-failure-keeps-input']
+        self.assertFalse(suite.validate_ui_report(report))
+
+    def testMissingGenerationEvidenceCannotReuseOldManagementPass(self):
+        report=self.valid_report()
+        report['checks']=[c for c in report['checks'] if c['name']!='categories/sixth-statistics']
         self.assertFalse(suite.validate_ui_report(report))

@@ -136,6 +136,47 @@ extension AppDelegate {
         window.setContentSize(NSSize(width: 1100, height: 720)); window.center()
         await capture("management-minimum")
         check("management/minimum-layout-actions-accessible", manager.root.newButton.frame.maxX <= manager.root.band.bounds.width && manager.root.libraryView.copyButton.frame.minX >= 0)
+        manager.root.search.field.stringValue = ""
+        manager.newEntry()
+        await until { manager.root.editor != nil && manager.root.page == .editor }
+        if let generationEditor = manager.root.editor {
+            generationEditor.originalText.text.string = "仅对能够复现的问题，先写失败测试再修复。"
+            generationEditor.sourceField.stringValue = "自动化模拟候选，未请求真实 API"
+            let raw = generationEditor.value
+            let candidate = GeneratedPrompt(title: "先固定复现条件", summary: "问题可复现时使用", explanation: "先用最小失败测试固定问题，再修复。", prompt: "仅在问题可复现时，先添加失败测试，确认失败后做最小修复并重跑。", categoryID: nil, newCategoryName: "学习与实验")
+            generationEditor.receiveCandidate(candidate)
+            check("generation/candidate-does-not-overwrite", generationEditor.value == raw)
+            let candidateTitle = generationEditor.candidateEditor.fields[0].text
+            candidateTitle.insertText("（审核修订）", replacementRange: NSRange(location: candidateTitle.string.utf16.count, length: 0))
+            check("generation/candidate-is-editable", generationEditor.candidate?.title == candidate.title + "（审核修订）" && generationEditor.value == raw)
+            await capture("management-candidate")
+            generationEditor.adoptButton.performClick(nil)
+            generationEditor.newCategoryField.stringValue = "学习与实验"
+            check("generation/adoption-preserves-original-source", generationEditor.value.originalExperience == raw.originalExperience && generationEditor.value.source == raw.source)
+            generationEditor.layoutSubtreeIfNeeded()
+            generationEditor.newCategoryField.scrollToVisible(generationEditor.newCategoryField.bounds)
+            if let box = generationEditor.newCategoryField.superview, let scroll = generationEditor.newCategoryField.enclosingScrollView, let doc = scroll.documentView {
+                check("categories/new-name-entire-control-visible", scroll.documentVisibleRect.contains(box.convert(box.bounds, to: doc)))
+            } else { check("categories/new-name-entire-control-visible", false) }
+            await capture("management-new-category")
+            manager.saveEditor()
+            await until { !manager.isSaving && manager.root.page == .library && manager.root.categoryItems.count == 6 && manager.selectedEntry?.id == generationEditor.id }
+            check("categories/sixth-sidebar-preview", manager.root.categoryItems.last?.label == "学习与实验" && manager.root.libraryView.categoryLabel.stringValue == "学习与实验")
+            if let saved = manager.selectedEntry {
+                controller.launcher.navigate(to: .entries(saved.categoryID))
+                await until { !controller.launcher.isLoading }
+                check("categories/sixth-launcher-list", controller.launcher.table.numberOfRows == 1)
+                controller.launcher.navigate(to: .detail(saved.categoryID, saved.id))
+                await until { !controller.launcher.isLoading }
+                check("categories/sixth-launcher-full-prompt", controller.launcher.currentEntry == saved)
+                // The external target remains simulated; this only checks the existing local copy/usage path.
+                manager.root.libraryView.copyButton.performClick(nil); copiedChangeCount = pasteboard.changeCount
+                manager.showStatistics()
+                await until { manager.root.dashboard?.currentSummary.categoryCounts[saved.categoryID] == 1 }
+                check("categories/sixth-statistics", manager.root.dashboard?.currentSummary.categoryCounts[saved.categoryID] == 1)
+                await capture("management-sixth-statistics")
+            }
+        }
         let beforeZoom = window.frame
         window.performMiniaturize(nil)
         await until { window.isMiniaturized }

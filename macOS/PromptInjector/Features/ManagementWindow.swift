@@ -28,7 +28,7 @@ final class SidebarItem: NSButton {
         }
         let color = category.map(Theme.categoryColor) ?? (selected ? Theme.text : Theme.secondary)
         if let category {
-            DesignAssets.image("Dot-" + category, template: false)?.draw(in: NSRect(x: 2, y: bounds.midY - 13.5, width: 27, height: 27), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            DesignAssets.categoryDot(category).draw(in: NSRect(x: 2, y: bounds.midY - 13.5, width: 27, height: 27), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
         } else if let asset, let image = DesignAssets.image(asset) {
             // SVG icons retain the Figma viewBox; tint is applied by AppKit at draw time.
             image.draw(in: NSRect(x: 12, y: bounds.midY - 9, width: 18, height: 18), from: .zero, operation: .sourceOver, fraction: selected ? 1 : 0.68, respectFlipped: true, hints: nil)
@@ -67,7 +67,14 @@ final class SearchBox: SurfaceView {
     let brand = Theme.label("Prompt Injector", size: 15, weight: .semibold)
     let all = SidebarItem("全部内容", asset: "Grid"), stats = SidebarItem("使用统计", asset: "Chart")
     let categoryLabel = Theme.label("分类", size: 11, color: Theme.tertiary)
-    let categoryItems = PromptCategory.all.map { SidebarItem($0.name, category: $0.id) }
+    private(set) var categoryItems: [SidebarItem] = []
+    private let categoryScroll = NSScrollView(), categoryBody = FlippedView()
+    func setCategories(_ categories: [PromptCategory]) {
+        categoryItems.forEach { $0.removeFromSuperview() }
+        categoryItems = categories.map { SidebarItem($0.name, category: $0.id) }
+        for (item, category) in zip(categoryItems, categories) { item.count = category.entryCount; categoryBody.addSubview(item) }
+        needsLayout = true
+    }
     private let sidebarRule = SurfaceView(color: Theme.hex(0x353535), radius: 0, border: nil)
     private let lowerRule = SurfaceView(color: Theme.border, radius: 0, border: nil)
     private let shortcut = Theme.label("⇧⌥Space", size: 11, color: Theme.tertiary)
@@ -89,9 +96,11 @@ final class SearchBox: SurfaceView {
         super.init(frame: frame); wantsLayer = true; layer?.backgroundColor = Theme.canvas.cgColor; layer?.cornerRadius = 20; layer?.masksToBounds = true
         [sidebar, title, subtitle, band, libraryView, footer].forEach(addSubview)
         [logo, brand, all, stats, sidebarRule, categoryLabel, lowerRule, shortcut].forEach(sidebar.addSubview)
-        categoryItems.forEach(sidebar.addSubview)
+        sidebar.addSubview(categoryScroll); categoryScroll.drawsBackground = false
+        categoryScroll.hasVerticalScroller = true; categoryScroll.scrollerStyle = .overlay; categoryScroll.documentView = categoryBody
         [search, newButton, statusDot, statusLabel, requiredLabel, cancelButton, saveButton].forEach(band.addSubview)
         statusDot.image = DesignAssets.image("Status"); statusDot.contentTintColor = Theme.hex(0xF5D975)
+        requiredLabel.lineBreakMode = .byWordWrapping; requiredLabel.maximumNumberOfLines = 2
         cancelButton.outlined = true
         newButton.toolTip = "新建条目"; newButton.setAccessibilityLabel("新建条目")
     }
@@ -104,7 +113,9 @@ final class SearchBox: SurfaceView {
         Theme.placeLine(brand, in: NSRect(x: 62, y: 40, width: 140, height: 32))
         all.frame = NSRect(x: 20, y: 90, width: 176, height: 40); stats.frame = NSRect(x: 20, y: 140, width: 176, height: 40)
         sidebarRule.frame = NSRect(x: 20, y: 190, width: 176, height: 1); categoryLabel.frame = NSRect(x: 20, y: 201, width: 176, height: 18)
-        for (i, item) in categoryItems.enumerated() { item.frame = NSRect(x: 20, y: 229 + CGFloat(i) * 54, width: 176, height: 44) }
+        categoryScroll.frame = NSRect(x: 10, y: 229, width: 196, height: max(0, h - 301))
+        categoryBody.frame = NSRect(x: 0, y: 0, width: 196, height: CGFloat(categoryItems.count) * 54)
+        for (i, item) in categoryItems.enumerated() { item.frame = NSRect(x: 10, y: CGFloat(i) * 54, width: 176, height: 44) }
         lowerRule.frame = NSRect(x: 20, y: h - 60, width: 176, height: 1)
         shortcut.frame = NSRect(x: 20, y: h - 43, width: 176, height: 18)
         title.frame = NSRect(x: 248, y: 32, width: main, height: 36); subtitle.frame = NSRect(x: 248, y: 70, width: main, height: 18)
@@ -133,9 +144,9 @@ final class ManagementSummaryCell: NSTableCellView {
     let heading = Theme.label(size: 14, weight: .medium), summary = Theme.label(size: 12, color: Theme.secondary), metadata = Theme.label(size: 11, color: Theme.tertiary)
     override init(frame: NSRect) { super.init(frame: frame); [heading, summary, metadata].forEach(addSubview) }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-    func set(_ value: ManagedSummary) {
+    func set(_ value: ManagedSummary, categories: [PromptCategory]) {
         heading.stringValue = value.summary.title; summary.stringValue = value.summary.summary
-        let name = Theme.categoryName(value.summary.categoryID)
+        let name = Theme.categoryName(value.summary.categoryID, in: categories)
         let text = NSMutableAttributedString(string: name, attributes: [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: Theme.categoryColor(value.summary.categoryID)])
         metadata.attributedStringValue = text
         toolTip = value.summary.title + "\n" + value.summary.summary
@@ -161,6 +172,7 @@ final class ManagementSummaryCell: NSTableCellView {
     private var settingSelection = false
     private var entry: PromptEntry?
     private var showingSources = false
+    var categories: [PromptCategory] = [] { didSet { table.reloadData(); setEntry(entry) } }
     override init(frame: NSRect) {
         super.init(frame: frame)
         addSubview(listPanel); addSubview(preview); listPanel.addSubview(listLabel); listPanel.addSubview(listScroll)
@@ -191,13 +203,13 @@ final class ManagementSummaryCell: NSTableCellView {
     }
     func numberOfRows(in tableView: NSTableView) -> Int { items.count }
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? { PromptRow() }
-    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? { let cell = ManagementSummaryCell(); cell.set(items[row]); return cell }
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? { let cell = ManagementSummaryCell(); cell.set(items[row], categories: categories); return cell }
     func tableViewSelectionDidChange(_ notification: Notification) { if !settingSelection, items.indices.contains(table.selectedRow) { onSelect?(items[table.selectedRow]) } }
     func setEntry(_ value: PromptEntry?) {
         if entry?.id != value?.id { showingSources = false }
         entry = value; copyButton.isEnabled = value != nil; editButton.isEnabled = value != nil; sources.isEnabled = value != nil
         heading.stringValue = value?.title ?? "没有匹配内容"; summary.stringValue = value?.summary ?? ""
-        categoryLabel.stringValue = value.map { Theme.categoryName($0.categoryID) } ?? ""
+        categoryLabel.stringValue = value.map { Theme.categoryName($0.categoryID, in: categories) } ?? ""
         categoryLabel.textColor = value.map { Theme.categoryColor($0.categoryID) } ?? Theme.text
         updateDocument(); needsLayout = true
     }
@@ -240,9 +252,19 @@ final class ManagementSummaryCell: NSTableCellView {
     private(set) var isSaving = false
     private var draftWork: DispatchWorkItem?
     private var afterSave: (() -> Void)?
+    private let generator: PromptGenerating
+    private var generationTask: Task<Void, Never>?
+    private var generationID: UUID?
+    var isGenerating: Bool { generationID != nil }
+    var confirmCandidateReplacement: () -> Bool = {
+        let alert = NSAlert(); alert.messageText = "重新整理当前经验？"
+        alert.informativeText = "成功后会替换当前候选及其修改。左侧和 Prompt 页的编辑稿保留。"
+        alert.addButton(withTitle: "重新整理"); alert.addButton(withTitle: "取消")
+        return alert.runModal() == .alertFirstButtonReturn
+    }
     var needsTerminationSave: Bool { isSaving || root.editor?.hasChanges == true }
-    init(library: PromptLibrary) {
-        self.library = library
+    init(library: PromptLibrary, generator: PromptGenerating = DeepSeekClient()) {
+        self.library = library; self.generator = generator
         let window = ManagementWindow(contentRect: NSRect(x: 0, y: 0, width: 1440, height: 960), styleMask: [.titled, .fullSizeContentView, .resizable, .closable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "Prompt Injector · 内容管理"; window.identifier = .init("PromptInjector.Management")
         window.titlebarAppearsTransparent = true; window.titleVisibility = .hidden
@@ -259,7 +281,6 @@ final class ManagementSummaryCell: NSTableCellView {
         }
         root.all.onPress = { [weak self] in self?.showLibrary(category: nil) }
         root.stats.onPress = { [weak self] in self?.showStatistics() }
-        for (index, item) in root.categoryItems.enumerated() { item.onPress = { [weak self] in self?.chooseCategory(PromptCategory.all[index].id) } }
         root.newButton.onPress = { [weak self] in self?.newEntry() }
         root.cancelButton.onPress = { [weak self] in self?.leaveEditor() }
         root.saveButton.onPress = { [weak self] in self?.saveEditor() }
@@ -294,6 +315,7 @@ final class ManagementSummaryCell: NSTableCellView {
     }
     func showLibrary(category: String?) {
         guard !isSaving else { return }
+        cancelGeneration()
         if root.page == .editor, root.editor?.hasChanges == true {
             persistDraft { [weak self] success in if success { self?.root.page = .library; self?.showLibrary(category: category) } }
             return
@@ -315,7 +337,10 @@ final class ManagementSummaryCell: NSTableCellView {
             guard let self else { return }
             if case .success(.categories(let categories)) = result {
                 self.counts = categories; self.root.all.count = categories.reduce(0) { $0 + $1.entryCount }
-                for item in self.root.categoryItems { item.count = categories.first { $0.id == item.category }?.entryCount ?? 0 }
+                self.root.setCategories(categories)
+                for item in self.root.categoryItems { item.onPress = { [weak self] in if let id = item.category { self?.chooseCategory(id) } } }
+                self.root.libraryView.categories = categories; self.root.editor?.setCategories(categories)
+                self.updateSidebar()
                 if self.root.page == .library { self.root.subtitle.stringValue = "\(self.root.all.count ?? 0) 条内容  ·  \(categories.count) 个分类" }
             }
         }
@@ -330,7 +355,7 @@ final class ManagementSummaryCell: NSTableCellView {
             guard let self, self.queryGeneration == generation else { return }
             switch result {
             case .success(let values):
-                self.root.libraryView.listLabel.stringValue = self.selectedCategory.map(Theme.categoryName) ?? "全部条目"
+                self.root.libraryView.listLabel.stringValue = self.selectedCategory.map { Theme.categoryName($0, in: self.counts) } ?? "全部条目"
                 self.root.libraryView.setItems(values, selecting: preserve)
                 self.root.subtitle.stringValue = "\(values.count) 条内容  ·  \(self.counts.count) 个分类"
             case .failure(let error): self.root.libraryView.setItems([], selecting: nil); self.root.subtitle.stringValue = error.localizedDescription
@@ -397,8 +422,18 @@ final class ManagementSummaryCell: NSTableCellView {
         }
     }
     private func presentEditor(_ draft: EditorDraft) {
-        draftWork?.cancel(); root.editor = PromptEditorView(draft: draft)
-        root.editor?.onChange = { [weak self] in self?.scheduleDraft() }
+        cancelGeneration(); draftWork?.cancel(); root.editor = PromptEditorView(draft: draft, categories: counts)
+        root.editor?.onChange = { [weak self] in self?.cancelGeneration(); self?.scheduleDraft() }
+        root.editor?.generateButton.onPress = { [weak self] in
+            guard let self else { return }
+            if self.isGenerating { self.cancelGeneration(); self.root.requiredLabel.stringValue = "整理已取消，输入已保留。" }
+            else { self.generatePrompt() }
+        }
+        root.editor?.onFailure = { [weak self] error in
+            self?.root.requiredLabel.stringValue = (error as? LibraryFailure)?.localizedDescription ?? "请补齐候选字段，并选择有效分类。"; self?.root.requiredLabel.textColor = Theme.error
+            DiagnosticLog.shared.write(.generationFailed, level: .warning, fields: .init(stage: "candidate-validation"))
+        }
+        root.editor?.configureButton.onPress = { [weak self] in self?.configureAPIKey() }
         root.page = .editor; root.title.stringValue = draft.original == nil ? "新增经验" : "编辑条目"
         root.subtitle.stringValue = ""; root.statusLabel.stringValue = "尚未保存"
         root.requiredLabel.stringValue = ""; root.requiredLabel.textColor = Theme.secondary
@@ -413,27 +448,132 @@ final class ManagementSummaryCell: NSTableCellView {
     private func persistDraft(updateStatus: Bool = true, completion: ((Bool) -> Void)? = nil) {
         draftWork?.cancel()
         guard let editor = root.editor, editor.hasChanges else { completion?(true); return }
-        library.storeDraft(editor.value, original: editor.original) { [weak self] result in
+        library.storeDraft(editor.draft) { [weak self] result in
             switch result {
             case .success: if updateStatus { self?.root.statusLabel.stringValue = "草稿已保存" }; completion?(true)
             case .failure(let error): self?.root.statusLabel.stringValue = "草稿保存失败"; self?.root.requiredLabel.stringValue = error.localizedDescription; completion?(false)
             }
         }
     }
+    func cancelGeneration() {
+        guard let id = generationID else { return }
+        generationID = nil; generationTask?.cancel(); generationTask = nil
+        root.editor?.generateButton.title = "整理"
+        root.requiredLabel.stringValue = "整理已取消，输入已保留。"; root.requiredLabel.textColor = Theme.secondary
+        DiagnosticLog.shared.write(.generationCancelled, operationID: id, fields: .init(stage: "invalidated"))
+    }
+    func generatePrompt() {
+        guard !isSaving, !isGenerating, let editor = root.editor, root.page == .editor else {
+            DiagnosticLog.shared.write(.generationDiscarded, fields: .init(stage: "busy-or-inactive")); return
+        }
+        let snapshot = editor.draft, operationID = UUID()
+        guard !snapshot.entry.originalExperience.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            root.requiredLabel.stringValue = GenerationFailure.emptyExperience.localizedDescription
+            DiagnosticLog.shared.write(.generationFailed, operationID: operationID, fields: .init(stage: "validation", errorCode: "empty-experience")); return
+        }
+        if editor.candidate != nil, !confirmCandidateReplacement() {
+            DiagnosticLog.shared.write(.generationCancelled, operationID: operationID, fields: .init(stage: "keep-candidate")); return
+        }
+        generationID = operationID; editor.generateButton.title = "取消整理"
+        root.requiredLabel.stringValue = "正在整理…"; root.requiredLabel.textColor = Theme.secondary
+        DiagnosticLog.shared.write(.generationStarted, operationID: operationID, fields: .init(stage: "saving-draft"))
+        // The exact request input must be durable before a network request starts.
+        draftWork?.cancel()
+        library.storeDraft(snapshot) { [weak self, weak editor] result in
+            guard let self, let editor, self.generationID == operationID, self.root.editor === editor else { return }
+            switch result {
+            case .failure(let error): self.finishGeneration(error: error, operationID: operationID, stage: "draft")
+            case .success:
+                self.root.statusLabel.stringValue = "草稿已保存"
+                self.library.load(.categories) { [weak self, weak editor] result in
+                    guard let self, let editor, self.generationID == operationID, self.root.editor === editor else { return }
+                    guard case .success(.categories(let categories)) = result else {
+                        self.finishGeneration(error: LibraryFailure.invalidCategory, operationID: operationID, stage: "categories"); return
+                    }
+                    let generator = self.generator
+                    self.generationTask = Task { [weak self, weak editor] in
+                        do {
+                            let candidate = try await generator.generate(experience: snapshot.entry.originalExperience, source: snapshot.entry.source, categories: categories)
+                            guard let self, let editor else { return }
+                            guard self.generationID == operationID, self.root.editor === editor, editor.draft == snapshot, !Task.isCancelled else {
+                                if self.generationID == operationID { self.cancelGeneration(); self.root.requiredLabel.stringValue = "输入已更改，请重新整理。" }
+                                DiagnosticLog.shared.write(.generationDiscarded, operationID: operationID, fields: .init(stage: "stale-response")); return
+                            }
+                            self.generationID = nil; self.generationTask = nil; editor.generateButton.title = "整理"
+                            editor.receiveCandidate(candidate)
+                            self.root.requiredLabel.stringValue = "候选已就绪，请审核后采用。"
+                            DiagnosticLog.shared.write(.generationFinished, operationID: operationID, fields: .init(stage: "candidate"))
+                            self.persistDraft()
+                        } catch {
+                            guard let self, self.generationID == operationID else {
+                                DiagnosticLog.shared.write(.generationDiscarded, operationID: operationID, fields: .init(stage: "stale-failure")); return
+                            }
+                            self.finishGeneration(error: error, operationID: operationID, stage: "request")
+                        }
+                    }
+                }
+            }
+        }
+    }
+    private func finishGeneration(error: Error, operationID: UUID, stage: String) {
+        generationID = nil; generationTask = nil; root.editor?.generateButton.title = "整理"
+        let urlError = error as? URLError
+        let message: String
+        switch urlError?.code {
+        case .timedOut: message = "DeepSeek 请求超时，输入已保留，请重试。"
+        case .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost, .cannotFindHost: message = "无法连接 DeepSeek，请检查网络后重试。"
+        case .cancelled: message = "整理已取消，输入已保留。"
+        default: message = (error as? GenerationFailure)?.localizedDescription ?? (error as? LibraryFailure)?.localizedDescription ?? "整理失败，输入已保留，请重试。"
+        }
+        root.requiredLabel.stringValue = message; root.requiredLabel.textColor = Theme.error
+        root.requiredLabel.toolTip = message
+        let code: Int
+        switch error {
+        case GenerationFailure.http(let status): code = status
+        case GenerationFailure.keychain(let status): code = Int(status)
+        default: code = (error as NSError).code
+        }
+        DiagnosticLog.shared.write(.generationFailed, level: .warning, operationID: operationID, fields: .init(stage: stage, systemCode: code))
+    }
+    private func configureAPIKey() {
+        let alert = NSAlert(); alert.messageText = "DeepSeek API key"
+        alert.informativeText = "保存到本机 Keychain。点击整理时，原始经验、来源和分类会发送给 DeepSeek。"
+        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 26))
+        field.placeholderString = "API key"; field.setAccessibilityLabel("DeepSeek API key"); alert.accessoryView = field
+        alert.addButton(withTitle: "保存"); alert.addButton(withTitle: "取消")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let key = field.stringValue; field.stringValue = ""
+        root.editor?.configureButton.isEnabled = false
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let result = Result { try DeepSeekKeychain.save(key) }
+            DispatchQueue.main.async {
+                guard let self else { return }; self.root.editor?.configureButton.isEnabled = true
+                switch result {
+                case .success: self.root.requiredLabel.stringValue = "API key 已保存到 Keychain。"
+                case .failure(let error):
+                    self.root.requiredLabel.stringValue = error.localizedDescription
+                    let code: Int
+                    if case GenerationFailure.keychain(let status) = error { code = Int(status) } else { code = (error as NSError).code }
+                    DiagnosticLog.shared.write(.credentialFailed, level: .warning, fields: .init(stage: "keychain-save", systemCode: code))
+                }
+            }
+        }
+    }
     private func leaveEditor() { showLibrary(category: selectedCategory) }
     func saveEditor() {
         guard !isSaving, let editor = root.editor else { return }
+        cancelGeneration()
         let value = editor.value
         guard !value.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !value.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             DiagnosticLog.shared.write(.storageFailed, level: .warning, fields: .init(stage: "form-validation", errorCode: "required-fields"))
             root.requiredLabel.stringValue = "请填写标题和 Prompt。"; root.requiredLabel.textColor = Theme.error; return
         }
         draftWork?.cancel(); isSaving = true; setSaving(true); root.statusLabel.stringValue = "正在保存…"
-        library.save(value, replacing: editor.original) { [weak self] result in
+        library.saveDraft(editor.draft) { [weak self] result in
             guard let self else { return }; self.isSaving = false; self.setSaving(false)
             switch result {
-            case .success:
-                editor.markSaved(value); self.selectedEntry = value; self.root.editor = nil
+            case .success(let saved):
+                editor.markSaved(saved); self.selectedEntry = saved; self.root.editor = nil
                 self.showLibrary(category: nil); self.root.footer.stringValue = "已保存"
             case .failure(let error):
                 self.root.statusLabel.stringValue = "保存失败"; self.root.requiredLabel.stringValue = error.localizedDescription
@@ -444,6 +584,7 @@ final class ManagementSummaryCell: NSTableCellView {
     }
     func showStatistics() {
         guard !isSaving else { return }
+        cancelGeneration()
         if root.page == .editor, root.editor?.hasChanges == true {
             persistDraft { [weak self] success in if success { self?.root.page = .statistics; self?.showStatistics() } }
             return
@@ -455,6 +596,7 @@ final class ManagementSummaryCell: NSTableCellView {
         root.dashboard?.category = selectedCategory; root.dashboard?.reload(); updateSidebar()
     }
     func prepareForTermination(_ completion: @escaping (Bool) -> Void) {
+        cancelGeneration()
         if isSaving {
             let previous = afterSave
             afterSave = { [weak self] in previous?(); self?.persistDraft(completion: completion) }
