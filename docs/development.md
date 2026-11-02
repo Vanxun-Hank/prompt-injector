@@ -99,3 +99,12 @@ bash scripts/build-app.sh
 运行 `python3 scripts/test-suite.py`。没有解锁桌面时可以先跑 `--headless`，但它不是完整验收。构建报告中的源码指纹用于核对实际二进制；`revision` 是构建时 HEAD，不能证明工作区没有未提交改动。
 
 公开提交只包括源码、测试、文档和已检查的示例截图；不提交个人 SQLite、诊断日志、会话标识、证书、私钥、`.env`、构建包或原始截图。`artifacts/` 留在本地作为原始证据，公开文档提供去标识后的摘要。
+
+
+## 常用安装包交付检查 · 2026-11-02
+
+独立审查包通过和打开，不代表常用安装位置已更新。此次用户重开后运行的仍是 `~/Library/Application Support/Prompt Injector/Build/Prompt Injector.app` 的 v0.2.0（20261030T162750Z），而 v0.3.1 只在 Reading-V2-Review。
+
+完成已授权的本机更新时：正常退出旧进程并等待队列排空；成对备份两库和旧包；把通过回归的同一签名包暂存并验证，再替换常用路径。从该路径重新打开后，同时核对实际 PID 路径、app.started 的版本／build ID／源码指纹、签名及原生窗口。仅 `build/Prompt Injector.app` 链接或“已打开审查包”不算常用安装交付。
+
+本次直接复制已验证 v0.3.1，没有重新编译。安装文件逐文件摘要与审查包一致；常用路径实际启动 build 20261101T044439Z。正式主库条目／分类与伴随库草稿／使用事件均与更新前备份逐表一致。证据：artifacts/installation/20261102T130352/report.json 和 installed-app.png。旧包／两库备份：`~/Library/Application Support/Prompt Injector/Backups/before-installed-v031-20261102T130352/`。仅恢复应用包不恢复数据；v0.2.0 仍有固定分类假设，不建议用它继续操作新增分类。
