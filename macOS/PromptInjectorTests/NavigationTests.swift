@@ -84,8 +84,8 @@ final class NavigationTests: XCTestCase {
 
     @MainActor func testGrowingCategoriesCycleColorsAndScrollWithoutMovingNavigation() throws {
         let categories = PromptCategory.initial + (6...26).map { PromptCategory(id: "category-\($0)", name: "新增分类 \($0)", symbol: "folder") }
-        for i in categories.indices { XCTAssertEqual(Theme.categoryColor(categories[i].id, in: categories), Theme.categoryColor(categories[i % 5].id, in: categories)) }
-        XCTAssertEqual(DesignAssets.categoryDot(categories[5].id, in: categories).tiffRepresentation, DesignAssets.categoryDot(categories[0].id, in: categories).tiffRepresentation)
+        for i in categories.indices { XCTAssertEqual(Theme.categoryColor(categories[i].id, in: categories), Theme.categoryColor(categories[i % 15].id, in: categories)) }
+        XCTAssertEqual(DesignAssets.categoryDot(categories[15].id, in: categories).tiffRepresentation, DesignAssets.categoryDot(categories[0].id, in: categories).tiffRepresentation)
         let root = ManagementRoot(frame: NSRect(x: 0, y: 0, width: 1100, height: 720))
         root.setCategories(categories); root.layoutSubtreeIfNeeded()
         let navigation = root.all.frame

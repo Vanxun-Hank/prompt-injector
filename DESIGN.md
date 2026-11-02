@@ -21,6 +21,16 @@ colors:
   debugging: "#FFAA85"
   review: "#C5A0FF"
   release: "#F699C8"
+  category-mint: "#74D5A8"
+  category-cyan: "#71CDD9"
+  category-lime: "#BEDA7B"
+  category-ochre: "#D8B279"
+  category-sky: "#79B7EE"
+  category-rose: "#D999AF"
+  category-sage: "#9EBBA6"
+  category-taupe: "#B9A58F"
+  category-olive: "#CED1A3"
+  category-slate: "#AAAFCB"
 typography:
   headline:
     fontFamily: system-ui
@@ -47,6 +57,11 @@ typography:
   reading:
     fontFamily: system-ui
     fontSize: 15px
+    fontWeight: 400
+    lineHeight: 28px
+  discussion-reply:
+    fontFamily: system-ui
+    fontSize: 16px
     fontWeight: 400
     lineHeight: 28px
   preview-reading:
@@ -85,6 +100,7 @@ rounded:
   field: 9px
   row: 10px
   segment: 7px
+  checkbox: 4px
 spacing:
   tight: 4px
   small: 8px
@@ -148,6 +164,22 @@ components:
     textColor: "{colors.text}"
     rounded: "{rounded.document}"
     padding: "{spacing.section}"
+  discussion-user:
+    backgroundColor: "{colors.band}"
+    textColor: "{colors.text}"
+    typography: "{typography.reading}"
+    rounded: "{rounded.document}"
+    padding: "12px 16px"
+  discussion-reply:
+    textColor: "{colors.text}"
+    typography: "{typography.discussion-reply}"
+  experience-row:
+    textColor: "{colors.text}"
+    rounded: "{rounded.row}"
+    height: 52px
+  experience-checkbox:
+    rounded: "{rounded.checkbox}"
+    size: 18px
   editor-field:
     backgroundColor: "{colors.shell}"
     textColor: "{colors.text}"
@@ -161,11 +193,11 @@ components:
 
 **Creative North Star: "原生深色内容工作台"**
 
-安静的中性深黑外壳承载紧凑、清楚的内容工具。管理窗口让浏览、长内容编辑和使用统计各有空间；快捷浮窗保持单窗三级调用。白色通用控件、灰色辅助信息与局部分类色建立层次，渐变 Logo 是贯穿两个窗口的识别资产。
+安静的中性深黑外壳承载紧凑、清楚的内容工具。管理窗口让浏览、经验讨论、长内容审核编辑和使用统计各有空间；快捷浮窗保持单窗三级调用。白色通用控件、灰色辅助信息与局部分类色建立层次，渐变 Logo 是贯穿两个窗口的识别资产。
 
-本规范合并既有原生约定、Figma 移植与之后确认的界面精简；用户最新修订优先。系统字体、可选择正文、原生焦点和键盘行为继续服务于快速查找与调用；彩色柔光集中在 Logo、管理分类色点和浮窗分类文字。界面组成来自 [管理窗口 brief](docs/content-manager-brief.md)、[内容阅读 V2](docs/content-reading-v2.md) 与 [浮窗更新 brief](docs/launcher-refresh-brief.md)，授权和原型审核状态只在 [prototype.md](docs/prototype.md) 维护。
+本规范合并既有原生约定、Figma 移植与之后确认的界面精简；用户最新修订优先。系统字体、可选择正文、原生焦点和键盘行为继续服务于快速查找与调用；彩色柔光集中在 Logo、管理分类色点和浮窗分类文字。界面组成来自 [管理窗口 brief](docs/content-manager-brief.md)、[内容阅读 V2](docs/content-reading-v2.md)、[经验理解与整理 V5](docs/experience-dialogue-prototype.md) 与 [浮窗更新 brief](docs/launcher-refresh-brief.md)，授权和原型审核状态只在 [prototype.md](docs/prototype.md) 维护。
 
-**当前记录依据（2026-11-01）：**V2 浏览页与分类循环色依据当前 `ManagementWindow.swift`、`DesignUI.swift`、`LauncherView.swift`、`PromptEditor.swift`、`UsageDashboard.swift` 和 SQLite 分类查询提取，并对照 `artifacts/tests/20261101T044433.502881Z/ui/` 中的浏览、原文、说明、最小窗口及分类滚动截图。编辑器的长文本字体、顶部保存条与统计布局继续沿用既有规范。此次文档对照不等于新的真实跨应用插入验收；本轮套件及系统验收边界见 [testing.md](docs/testing.md)。
+**当前记录依据（2026-11-03）：**在既有 V2 浏览页规范上，对照当前 `ExperienceView.swift`、`PromptEditor.swift`、`DesignUI.swift`、`Theme.swift` 与管理窗口提取新增会话、审核和十五色循环。画面对照为 `artifacts/tests/20261102T161703.310103Z/ui/experience-chat.png`、`experience-minimum.png`、`experience-review.png`、`experience-original.png`；它们是原生窗口的两条经验 fixture，与 V5 Figma 的二十条示例分开记录。V5 的默认／最小双栏参考为 `artifacts/conversation-v5/multi.png` 与 `minimum.png`。此前 V2 浏览、原文、说明及分类滚动依据 `artifacts/tests/20261101T044433.502881Z/ui/`；既有编辑与统计规范继续保留。测试、真实 API 与系统验收边界见 [testing.md](docs/testing.md) 和 [实现记录](docs/experience-dialogue.md)，本次文档对照不等于真实跨应用插入复验。
 
 **历史证据（2026-10-30）：**初版规范依据当日的 `Theme.swift`、`DesignUI.swift`、管理／编辑／统计／浮窗视图及本地 Design 资源提取。该轮对齐与图标修正的完整套件通过：52 项 Swift、7 项 Python 与 108 项原生检查，并留存 19 张新截图，报告为 `artifacts/tests/20261030T162746.795484Z/summary.json` 与 `ui/report.json`，构建 ID 为 `20261030T162750Z`，源码指纹为 `ffbe2067cbe2fae4e26a2103420947320e65bf8bba802c0090d440294c140bba`。独立视觉复核 SHIP，检查 `.impeccable/review/alignment/` 的全部 19 张有效截图；结论覆盖各尺寸浮窗、侧栏、编辑与统计的文字对齐，以及图标资源和打包结果。原生检查验证运行时与打包图标的透明外画布，源 PNG、10 张构建 PNG 与 ICNS 的 alpha 检查留在 `artifacts/alignment/icon-alpha.log`；八张打包位图均有来源记录。此前正常应用已通过系统绿色按钮进入独立 Space 全屏；该轮已重启至上述构建并打开现有内容库。Dock 的实际系统外观未取得截图，真实跨应用输入框插入也未在该轮版本复验，不将这些边界算作该轮视觉通过。最新进度见 [移植记录](docs/figma-integration.md)。前置 token 的 CSS px 在 AppKit 中对应同数值的逻辑 pt；侧车 HTML/CSS 仅供设计面板预览，不模拟 AppKit 的排版、焦点环或系统阴影；侧车八级 OKLCH 梯度是合成展示色，不是原生颜色 token。
 
@@ -189,7 +221,8 @@ components:
 
 ### Secondary
 
-- **需求暖黄**（`requirements`）、**编码淡蓝**（`coding`）、**排查珊瑚**（`debugging`）、**审查淡紫**（`review`）、**发布粉色**（`release`）：沿用五种原色，按 SQLite 返回的完整分类顺序循环黄、蓝、珊瑚、紫、粉，第六黄、第七蓝；色值不再按分类 ID 固定。分类名称来自数据库，新增分类沿用 folder 符号与对应柔光圆点。
+- **需求暖黄**（`requirements`）、**编码淡蓝**（`coding`）、**排查珊瑚**（`debugging`）、**审查淡紫**（`review`）、**发布粉色**（`release`）：保留原五色及其顺序，名称仅保留初始种子的历史含义，不按分类 ID 固定。
+- 第六至十五色依次为 **薄荷绿**（`category-mint`）、**浅青**（`category-cyan`）、**嫩黄绿**（`category-lime`）、**柔赭**（`category-ochre`）、**天蓝**（`category-sky`）、**灰玫瑰**（`category-rose`）、**鼠尾草绿**（`category-sage`）、**灰褐**（`category-taupe`）、**浅橄榄**（`category-olive`）、**灰蓝紫**（`category-slate`）。与原五色组成十五色循环，第十六类回到第一色；分类名称来自 SQLite，不因扩色新增分类或设置项。
 - 管理窗口的侧栏分类名及预览分类名使用对应彩色文字；预览只显示分类名称，条目列表不再重复分类元信息。侧栏、编辑选择器、趋势图图例和分类分布保留对应柔光色点。编辑选择器文字、趋势图图例和分布名称保持中性；统计曲线、面积与占比条使用分类色。
 - 浮窗不出现分类色点；第一层分类名及后续页顶部当前分类名使用对应彩色文字和柔光。条目标题、简述、数量及操作仍是中性色。
 
@@ -211,7 +244,7 @@ components:
 
 - `headline` 用于管理页与统计页标题；`preview-title` 用于管理预览标题；`launcher-title` 用于浮窗详情标题。
 - `row` 用于条目标题与浮窗分类；管理预览分类为 13 pt 中等字重，管理侧栏名称为 13 pt 常规字重。品牌标题为 15 pt 半粗体，局部区块标题为 16 pt 中等字重。
-- `body` 是浮窗正文基线；`reading` 用于编辑器长文本，管理简述编辑使用 13 pt／24 pt 行高。
+- `body` 是浮窗正文基线；`reading` 用于编辑器长文本与会话用户消息；`discussion-reply` 用于模型回复，均保持比例字体。管理简述编辑使用 13 pt／24 pt 行高。
 - `preview-reading` 用于管理预览的 Prompt 与作者原文；`preview-explanation` 仅用于独立的整理说明页。原文页的来源为 13 pt／24 pt 行高，HTTP／HTTPS 链接保留原生点击能力。
 - `label`、`caption` 和 `statistic` 分别用于辅助标签、弱提示和统计大数值。字段标签可用中等字重，不将全部辅助信息加粗。
 
@@ -229,7 +262,11 @@ components:
 
 内容浏览页的标题、搜索和加号在同一行，主体从 y = 112 pt 开始，底部留 32 pt。列表与预览间隔 20 pt：主体宽度至少 1100 pt 时列表 352 pt，否则 280 pt。列表只显示标题与一行简述，行高由 `management-row` 定义，间距 4 pt；去掉重复分类元信息。预览默认只显示 Prompt，页签「Prompt / 作者原文 / 整理说明」独立切换；作者原文保留原字句和来源链接，复制始终复制完整 Prompt。预览左右留白在主体宽度至少 1100 pt 时用 `main-edge`，否则用 `content-edge`；标题最多两行，简述为 13 pt、最多两行，完整文字可从 tooltip 与编辑器读取。三个阅读页正文最大宽度均为 640 pt，各自使用 Typography 中的阅读层级；切换条目重回 Prompt，切换阅读页回到正文顶部。复制／编辑固定底部。分类区域独立纵向滚动，全部内容／统计和底部快捷键不随分类移动。
 
-编辑页仍保留 64 pt 横向操作条，主体从 y = 192 pt 开始。
+经验讨论页主体从 y = 112 pt 开始，底部留 32 pt；左聊天、右识别经验等宽，列间隔 24 pt。默认 1440 × 960 pt 时两列各 568 pt，最小 1100 × 720 pt 时各 398 pt。两列独立滚动，左侧输入框固定底部且高 128 pt，右侧底部固定勾选数量和「整理已勾选」。输入框中的 DeepSeek 是服务标签，钥匙是现有 API key 配置入口，不是模型选择器。已识别后顶部显示当前经验标题；右侧来源／作者原文入口仅打开当前经验原句，可另开完整来源链接。
+
+审核页复用编辑器：默认左列 352 pt，主区不足 1100 pt 时 320 pt，列间隔 20 pt；右列以「Prompt / 作者原文 / 整理说明」分开。左列下方固定上一条／下一条，顶部显示返回对话与明确的保存数量；元信息和长内容各自滚动，作者原句和来源只读。
+
+普通编辑页仍保留 64 pt 横向操作条，主体从 y = 192 pt 开始。
 
 编辑页左列放标题、分类、简述与来源，右列放长文本；主区宽度至少 1100 pt 时左列 380 pt，否则 320 pt，两列间隔 20 pt。保存与取消固定于顶部，未保存／草稿／失败状态就近显示。左侧元信息与右侧正文各自滚动。
 
@@ -247,7 +284,7 @@ components:
 
 内部以纯色面板、低对比细边界和状态提亮表达层次，不给每个容器加阴影。两个窗口保留 macOS 系统窗口阴影。浮窗仍有 HUD／behind-window 材质视图，但当前中性 `shell` 遮罩是不透明色，不再使用旧版偏暖透明配方；降低透明度时隐藏底层材质，提高对比度时增强外边线。
 
-Logo 与管理分类色点优先加载本地 3 倍透明 PNG，因为 AppKit 的 SVG 渲染会忽略稿件中的 blur filter；原始 SVG 保留为矢量依据，其他控件继续直接使用 SVG。Logo 原稿为同形副本透明度 0.55、Gaussian blur 标准差 3；色点原稿为 7 pt 亮芯与 27 × 27 pt 完整外延，含两层柔光（标准差 1.5／5，透明度 0.9／0.65）。这些效果由 PNG 预渲染保留，原生不再重复叠加，布局不得裁掉外缘。Logo 与五个色点的逻辑尺寸从 PNG bitmap 像素宽高除以 3 取得，不能使用 PNG DPI 元数据推测逻辑尺寸。浮窗分类文字继续由 `Theme.glow` 叠加文字阴影（透明度 0.55、blur 3 pt）与 layer 柔光（opacity 0.28、radius 9 pt），偏移均为零。
+Logo 与原五色管理分类点优先加载本地 3 倍透明 PNG，因为 AppKit 的 SVG 渲染会忽略稿件中的 blur filter；原始 SVG 保留为矢量依据，其他控件继续直接使用 SVG。Logo 原稿为同形副本透明度 0.55、Gaussian blur 标准差 3；色点原稿为 7 pt 亮芯与 27 × 27 pt 完整外延，含两层柔光（标准差 1.5／5，透明度 0.9／0.65）。这些效果由 PNG 预渲染保留，原生不再重复叠加，布局不得裁掉外缘。Logo 与原五色资源的逻辑尺寸从 PNG bitmap 像素宽高除以 3 取得，不能使用 PNG DPI 元数据推测逻辑尺寸。第六至十五色由 `DesignAssets.categoryDot` 按同样 27 pt 外延、7 pt 亮芯绘制，使用透明度 0.6、blur 7 pt 的零偏移原生阴影；不存在十五份 PNG 资源。浮窗分类文字继续由 `Theme.glow` 叠加文字阴影（透明度 0.55、blur 3 pt）与 layer 柔光（opacity 0.28、radius 9 pt），偏移均为零。
 
 **The Scoped Glow Rule.** 柔光只强调 Logo 和明确的分类标识，不扩展到通用按钮、面板或正文。
 
@@ -259,7 +296,7 @@ Logo 与管理分类色点优先加载本地 3 倍透明 PNG，因为 AppKit 的
 
 外壳使用连续圆角，管理根视图、内部面板、详情正文、按钮和输入框依次采用前置 token 中的轮廓。面板与轮廓按钮边界为 1 pt，分隔线也为 1 pt；侧栏分类通过整行点击区和选中底色组织，不绘制重复小框。
 
-Logo 的逻辑槽位在管理侧栏为 32 pt、浮窗为 24 pt。当前 Logo PNG 为 112 × 124 像素；32 pt 槽位中的图像框为 112/3 × 124/3 pt，x = 0、y = −5.261 pt，其他槽位按宽度同比缩放。五个分类色点 PNG 均为 81 × 81 像素，显示为 27 × 27 pt，并相对 7 pt 槽位向左／上各外扩 10 pt。菜单栏使用独立单色模板图标，36 像素资源显示为 18 逻辑 pt，由系统着色；不把彩色 Logo 当菜单栏模板。八个打包 PNG 均保留 `impeccable:prompt` 来源元数据，Figma 导出的七张另保留 `Software`；应用图标和资源说明见 [Design 资源说明](macOS/PromptInjector/Resources/Design/README.md)。
+Logo 的逻辑槽位在管理侧栏为 32 pt、浮窗为 24 pt。当前 Logo PNG 为 112 × 124 像素；32 pt 槽位中的图像框为 112/3 × 124/3 pt，x = 0、y = −5.261 pt，其他槽位按宽度同比缩放。原五色分类点 PNG 均为 81 × 81 像素，显示为 27 × 27 pt；新增十色使用同尺寸的原生绘制图像，均相对 7 pt 槽位向左／上各外扩 10 pt。菜单栏使用独立单色模板图标，36 像素资源显示为 18 逻辑 pt，由系统着色；不把彩色 Logo 当菜单栏模板。八个打包 PNG 均保留 `impeccable:prompt` 来源元数据，Figma 导出的七张另保留 `Software`；应用图标和资源说明见 [Design 资源说明](macOS/PromptInjector/Resources/Design/README.md)。
 
 应用图标 `AppIcon.png` 保留黑色圆角底块和原有彩色品牌，只用内置 imagegen 去除底块外的白色画布；精确编辑提示保存在 PNG 元数据中。当前透明源为 1254 × 1254 像素，运行时应用图标和 ICNS 共用这张源图，打包通过系统 `sips`／`iconutil` 生成 16–1024 像素规格。界面 Logo 与菜单栏模板维持各自资源，不随应用图标改动。
 
@@ -293,6 +330,14 @@ Logo 的逻辑槽位在管理侧栏为 32 pt、浮窗为 24 pt。当前 Logo PNG
 
 保存状态放在顶部操作条，必填和保存错误就近显示；常态不重复提示必填规则，也不附加作者或格式说明。失败保留输入、草稿与重试能力；视觉成功状态不能先于本地保存成功。管理表单的长内容不移入快捷浮窗。
 
+### Experience Discussion and Review
+
+用户消息使用 `band` 底、`document` 圆角及左右 16 pt／上下 12 pt 留白；模型回复无气泡底，每次回复后用 1 pt 细线结束该轮。消息间距 24 pt，用户消息相对回复缩进 32 pt。消息正文可选择；会话切换按稳定经验 ID 恢复各自讨论和未发送输入。
+
+经验列表行高 52 pt、行间距 4 pt；当前讨论行使用 `selection` 与 `row` 圆角。文字与复选框是独立操作，文字区域首次发起该条讨论，已有会话则恢复；18 pt 方框位于 44 pt 点击区中，只更新勾选与计数，不替换当前讨论。文字为 15 pt 系统字体，完整标题由 tooltip 保留；勾选态提供复选框辅助功能角色和值。当前讨论高亮与勾选分别表达两种状态。
+
+审核沿用现有字段和分段，不把讨论内容混入作者原句。标题、分类、简述、Prompt 和整理说明可编辑，作者原文与来源只读；上一条／下一条保留候选修改。保存数量来自当前勾选，事务成功后才显示成功。来源标识使用本地 `SourceX.svg`、`SourceGitHub.svg`、`SourceReddit.svg` 的 16 pt 模板图标，其他来源回退链接符号；合并的来源／原文入口保留完整来源 tooltip。删除入口位于已有条目预览的操作区，确认弹窗点名待删标题并提供取消；不以划过或选中条目触发删除。
+
 ### Feedback
 
 常态界面保留内容、字段、数量、操作名称和快捷键；品牌副标题、重复筛选名称、本地保存／可调用说明、示例来源说明与静态页脚不占用页面空间。空状态、失败原因、保存／草稿状态、操作 tooltip 和快捷键提示继续保留；移除说明文字不删除原始经验、来源、解释或 Prompt 数据。
@@ -304,9 +349,9 @@ Logo 的逻辑槽位在管理侧栏为 32 pt、浮窗为 24 pt。当前 Logo PNG
 ### Do:
 
 - **Do** 使用系统字体、原生红黄绿按钮与独立 Space 全屏、应用 Logo、文字选择和明确的可访问名称。
-- **Do** 让通用控件保持中性白／深灰，所有界面按同一完整分类顺序循环五色。
+- **Do** 让通用控件保持中性白／深灰，所有界面按同一完整分类顺序循环十五色，保留前五色。
 - **Do** 让管理预览只显示对齐的分类名称，在侧栏、编辑器和统计中保留分类色点；浮窗只使用分类文字柔光。
-- **Do** 复用本地资源：Logo／色点使用 3 倍 PNG 保留柔光和正确逻辑尺寸，SVG 保留为矢量来源。
+- **Do** 复用本地资源：Logo／原五色色点使用 3 倍 PNG 保留柔光和正确逻辑尺寸，新增十色使用同尺寸原生色点，SVG 保留为矢量来源。
 - **Do** 尊重降低透明度、提高对比度与减少动态效果设置。
 - **Do** 为长内容保留滚动、完整复制及保存失败后的编辑内容。
 

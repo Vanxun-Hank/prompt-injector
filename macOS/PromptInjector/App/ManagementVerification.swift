@@ -61,7 +61,7 @@ extension AppDelegate {
         check("management/initial-real-library", manager.root.libraryView.items.count == 7)
         check("assets/all-figma-assets-load", ["Logo", "Grid", "Chart", "Search", "Plus", "Down", "Copy", "Edit", "Check", "Back", "Close", "Insert", "Chevron", "Status", "Dot-requirements", "Dot-coding", "Dot-debugging", "Dot-review", "Dot-release", "MenuBar", "AppIcon"].allSatisfy { DesignAssets.image($0, template: false)?.size.width ?? 0 > 0 })
         await capture("management-library")
-        manager.root.newButton.performClick(nil)
+        manager.newEntry()
         await until { manager.root.editor != nil }
         guard let editor = manager.root.editor else { window.orderOut(nil); management = nil; return checks }
         manager.saveEditor()
@@ -122,7 +122,7 @@ extension AppDelegate {
             let changed = editing.value
             manager.root.cancelButton.performClick(nil)
             await until { manager.root.page == .library }
-            manager.root.newButton.performClick(nil)
+            manager.newEntry()
             await until { manager.root.page == .editor }
             check("management/cancel-restores-local-draft", manager.root.editor?.value == changed)
             manager.root.saveButton.performClick(nil)

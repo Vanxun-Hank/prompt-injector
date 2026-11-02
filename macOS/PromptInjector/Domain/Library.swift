@@ -162,6 +162,28 @@ final class PromptLibrary {
         }
     }
     func flush(completion: @escaping () -> Void) { queue.async { DispatchQueue.main.async(execute: completion) } }
+    private func experience<T>(_ operation: @escaping (ExperienceRepository) throws -> T) async throws -> T {
+        try await withCheckedThrowingContinuation { continuation in
+            managed({ repository in
+                guard let repository = repository as? ExperienceRepository else { throw LibraryFailure.readOnly }
+                return try operation(repository)
+            }, completion: { continuation.resume(with: $0) })
+        }
+    }
+
+    func experienceDraft() async throws -> ExperienceSession? { try await experience { try $0.experienceDraft() } }
+    func storeExperienceDraft(_ session: ExperienceSession) async throws { try await experience { try $0.storeExperienceDraft(session) } }
+    func saveExperiences(_ session: ExperienceSession) async throws -> [PromptEntry] {
+        let saved = try await experience { try $0.saveExperiences(session) }
+        await MainActor.run {
+            for entry in saved { NotificationCenter.default.post(name: .promptLibraryChanged, object: self, userInfo: ["id": entry.id, "category": entry.categoryID, "previousCategory": entry.categoryID]) }
+        }
+        return saved
+    }
+    func deleteEntry(_ original: PromptEntry) async throws {
+        try await experience { try $0.deleteEntry(original) }
+        await MainActor.run { NotificationCenter.default.post(name: .promptLibraryChanged, object: self, userInfo: ["id": original.id, "category": original.categoryID, "previousCategory": original.categoryID]) }
+    }
     func usage(since: Date?, completion: @escaping (Result<[UsageRecord], Error>) -> Void) { managed({ try $0.usage(since: since) }, completion: completion) }
     func load(_ page: LauncherPage, completion: @escaping (Result<LibraryPageContent, Error>) -> Void) {
         queue.async { [repository] in

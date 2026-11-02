@@ -2,6 +2,7 @@ import AppKit
 
 final class EditorText: SurfaceView {
     let scroll = NSScrollView(), text = NSTextView()
+    var reservedBottom: CGFloat = 0
     init(_ value: String, label: String, size: CGFloat = 14) {
         super.init(color: Theme.shell, radius: 9)
         scroll.drawsBackground = false; scroll.hasVerticalScroller = true; scroll.scrollerStyle = .overlay
@@ -21,12 +22,15 @@ final class EditorText: SurfaceView {
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override func layout() {
-        super.layout(); scroll.frame = bounds.insetBy(dx: 1, dy: 1)
+        super.layout(); scroll.frame = NSRect(x: 1, y: 1, width: max(1, bounds.width - 2), height: max(1, bounds.height - reservedBottom - 2))
         text.setFrameSize(NSSize(width: scroll.contentSize.width, height: max(scroll.contentSize.height, text.frame.height)))
     }
 }
 
 @MainActor final class PromptEditorView: FlippedView, NSTextFieldDelegate, NSTextViewDelegate {
+    let reviewMode: Bool
+    let previousButton = ActionButton(title: "上一条", symbol: nil, target: nil, action: nil)
+    let nextButton = ActionButton(title: "下一条", symbol: nil, target: nil, action: nil)
     var onChange: (() -> Void)?
     private(set) var original: PromptEntry?
     let id: String
@@ -53,13 +57,17 @@ final class EditorText: SurfaceView {
     private var dot: CategoryDot?
     private let categoryArrow = NSImageView()
     let summaryText: EditorText, promptText: EditorText, originalText: EditorText, explanationText: EditorText
-    let segments = ChoiceSegments(["Prompt", "原始经验与解释", "整理候选"])
+    let segments: ChoiceSegments
+    private let sourceIcon = NSImageView()
+    let reviewOriginal = TextDocument(), reviewOriginalScroll = NSScrollView()
     private let contentRule = SurfaceView(color: Theme.border, radius: 0, border: nil)
     private let promptLabel = Theme.label("Prompt *", size: 14, weight: .medium)
     private let originalLabel = Theme.label("原始经验", size: 14, weight: .medium)
     private let explanationLabel = Theme.label("解释", size: 14, weight: .medium)
     private let explanationRule = SurfaceView(color: Theme.border, radius: 0, border: nil)
-    init(draft: EditorDraft, categories: [PromptCategory] = []) {
+    init(draft: EditorDraft, categories: [PromptCategory] = [], reviewMode: Bool = false) {
+        self.reviewMode = reviewMode
+        segments = ChoiceSegments(reviewMode ? ["Prompt", "作者原文", "整理说明"] : ["Prompt", "原始经验与解释", "整理候选"])
         self.categories = categories; creatingCategory = draft.newCategoryName != nil
         id = draft.entry.id; category = draft.entry.categoryID; original = draft.original
         summaryText = EditorText(draft.entry.summary, label: "简述", size: 13)
@@ -72,6 +80,7 @@ final class EditorText: SurfaceView {
         [infoHeading, titleBox, categoryBox, summaryText, sourceBox, newCategoryLabel, newCategoryBox].forEach(infoBody.addSubview)
         labels.forEach(infoBody.addSubview)
         [generateButton, configureButton].forEach(info.addSubview)
+        [previousButton, nextButton].forEach(info.addSubview); sourceBox.addSubview(sourceIcon)
         for (field, box, label, value) in [(titleField, titleBox, "标题", draft.entry.title), (sourceField, sourceBox, "来源", draft.entry.source), (newCategoryField, newCategoryBox, "新分类名称", draft.newCategoryName ?? "")] {
             field.font = .systemFont(ofSize: 14); field.textColor = Theme.text; field.drawsBackground = false
             field.isBordered = false; field.focusRingType = .none; field.delegate = self
@@ -81,6 +90,10 @@ final class EditorText: SurfaceView {
         categoryArrow.image = DesignAssets.image("Down"); categoryBox.addSubview(categoryArrow)
         categoryButton.font = .systemFont(ofSize: 14); categoryButton.onPress = { [weak self] in self?.chooseCategory() }
         [candidateEditor, adoptButton, segments, contentRule, promptLabel, promptText, originalLabel, originalText, explanationLabel, explanationText, explanationRule].forEach(content.addSubview)
+        content.addSubview(reviewOriginalScroll); reviewOriginalScroll.drawsBackground = false; reviewOriginalScroll.hasVerticalScroller = true
+        reviewOriginalScroll.scrollerStyle = .overlay; reviewOriginalScroll.documentView = reviewOriginal
+        reviewOriginal.set(Theme.body(draft.entry.originalExperience, size: 16, lineHeight: 32), width: 640)
+        reviewOriginalScroll.isHidden = true
         for edit in [summaryText, promptText, originalText, explanationText] { edit.text.delegate = self }
         // The long content editors use the surrounding panel as their surface.
         for edit in [promptText, originalText, explanationText] { edit.layer?.borderWidth = 0; edit.layer?.backgroundColor = NSColor.clear.cgColor }
@@ -91,6 +104,9 @@ final class EditorText: SurfaceView {
         adoptButton.toolTip = "将候选填入标题、简述、解释、Prompt 和分类；保留原文与来源"
         adoptButton.onPress = { [weak self] in self?.adoptCandidate() }
         updateCategory(); showCandidate()
+        if reviewMode { originalText.text.isEditable = false; sourceField.isEditable = false }
+        sourceField.maximumNumberOfLines = 1; sourceField.lineBreakMode = .byTruncatingTail; sourceField.cell?.wraps = false
+        sourceField.toolTip = draft.entry.source
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     var value: PromptEntry { .init(id: id, categoryID: category, title: titleField.stringValue, summary: summaryText.text.string, originalExperience: originalText.text.string, source: sourceField.stringValue, explanation: explanationText.text.string, prompt: promptText.text.string) }
@@ -103,12 +119,19 @@ final class EditorText: SurfaceView {
     }
     func markSaved(_ entry: PromptEntry) { original = entry }
     func setEditingEnabled(_ enabled: Bool) {
-        titleField.isEditable = enabled; sourceField.isEditable = enabled; categoryButton.isEnabled = enabled; newCategoryField.isEditable = enabled
+        titleField.isEditable = enabled; sourceField.isEditable = enabled && !reviewMode; categoryButton.isEnabled = enabled; newCategoryField.isEditable = enabled
         generateButton.isEnabled = enabled; configureButton.isEnabled = enabled; adoptButton.isEnabled = enabled && candidate != nil; candidateEditor.setEditingEnabled(enabled)
         [summaryText, promptText, originalText, explanationText].forEach { $0.text.isEditable = enabled }
+        if reviewMode { originalText.text.isEditable = false }
+        previousButton.isEnabled = enabled && reviewIndex > 0; nextButton.isEnabled = enabled && reviewIndex + 1 < reviewTotal
     }
-    func controlTextDidChange(_ obj: Notification) { onChange?() }
+    func controlTextDidChange(_ obj: Notification) { needsLayout = true; onChange?() }
     func textDidChange(_ notification: Notification) { onChange?() }
+    private var reviewIndex = 0, reviewTotal = 0
+    func setReviewPosition(index: Int, total: Int, title: String) {
+        reviewIndex = index; reviewTotal = total; infoHeading.stringValue = "\(index + 1) / \(total) · \(title)"
+        previousButton.isEnabled = index > 0; nextButton.isEnabled = index + 1 < total
+    }
     private func updateCategory() {
         categoryButton.title = creatingCategory ? "新增分类" : Theme.categoryName(category, in: categories)
         dot?.removeFromSuperview(); let next = CategoryDot(category: category, categories: categories); categoryBox.addSubview(next); dot = next
@@ -152,7 +175,7 @@ final class EditorText: SurfaceView {
         DiagnosticLog.shared.write(.candidateAdopted, fields: .init(stage: "explicit-adoption")); onChange?()
     }
     override func layout() {
-        super.layout(); let iw: CGFloat = bounds.width >= 1100 ? 380 : 320, cw = bounds.width - iw - 20, h = bounds.height
+        super.layout(); let iw: CGFloat = bounds.width >= 1100 ? (reviewMode ? 352 : 380) : 320, cw = bounds.width - iw - 20, h = bounds.height
         info.frame = NSRect(x: 0, y: 0, width: iw, height: h); content.frame = NSRect(x: iw + 20, y: 0, width: cw, height: h)
         infoScroll.frame = NSRect(x: 1, y: 1, width: iw - 2, height: max(0, h - 80)); infoBody.frame = NSRect(x: 0, y: 0, width: iw - 2, height: max(h - 80, creatingCategory ? 566 : 478))
         infoHeading.frame = NSRect(x: 24, y: 24, width: iw - 48, height: 24)
@@ -164,7 +187,10 @@ final class EditorText: SurfaceView {
         categoryArrow.frame = NSRect(x: iw - 76, y: 14, width: 16, height: 16)
         summaryText.frame = NSRect(x: 24, y: 274, width: iw - 48, height: 84)
         sourceBox.frame = NSRect(x: 24, y: 410, width: iw - 48, height: 44)
-        Theme.placeLine(sourceField, in: NSRect(x: 12, y: 0, width: iw - 72, height: 44), stableBaseline: true)
+        let platform = SourceLink.platform(sourceField.stringValue)
+        sourceIcon.image = platform.asset.flatMap { DesignAssets.image($0) } ?? NSImage(systemSymbolName: "link", accessibilityDescription: "来源")
+        sourceIcon.frame = NSRect(x: 12, y: 14, width: 16, height: 16)
+        Theme.placeLine(sourceField, in: NSRect(x: 40, y: 0, width: iw - 100, height: 44), stableBaseline: true)
         newCategoryLabel.isHidden = !creatingCategory; newCategoryBox.isHidden = !creatingCategory
         newCategoryLabel.frame = NSRect(x: 24, y: 474, width: iw - 48, height: 18)
         newCategoryBox.frame = NSRect(x: 24, y: 498, width: iw - 48, height: 44)
@@ -172,6 +198,10 @@ final class EditorText: SurfaceView {
         let actionsY = h - 60
         generateButton.frame = NSRect(x: 24, y: actionsY, width: iw - 104, height: 40)
         configureButton.frame = NSRect(x: iw - 64, y: actionsY, width: 40, height: 40)
+        generateButton.isHidden = reviewMode; configureButton.isHidden = reviewMode
+        previousButton.isHidden = !reviewMode; nextButton.isHidden = !reviewMode
+        previousButton.frame = NSRect(x: 24, y: actionsY, width: 96, height: 40)
+        nextButton.frame = NSRect(x: iw - 120, y: actionsY, width: 96, height: 40)
         segments.frame = NSRect(x: 24, y: 24, width: min(400, cw - 48), height: 44); contentRule.frame = NSRect(x: 24, y: 84, width: cw - 48, height: 1)
         promptLabel.frame = NSRect(x: 24, y: 104, width: cw - 48, height: 24)
         promptText.frame = NSRect(x: 12, y: 136, width: cw - 24, height: max(120, h - 160))
@@ -188,5 +218,16 @@ final class EditorText: SurfaceView {
         let prompt = segments.selectedIndex == 0
         [promptLabel, promptText].forEach { $0.isHidden = !prompt }
         [originalLabel, originalText, explanationRule, explanationLabel, explanationText].forEach { $0.isHidden = prompt || reviewing }
+        if reviewMode {
+            candidateEditor.isHidden = true; adoptButton.isHidden = true
+            promptLabel.isHidden = true; originalLabel.isHidden = true; explanationLabel.isHidden = true; explanationRule.isHidden = true
+            promptText.isHidden = segments.selectedIndex != 0
+            originalText.isHidden = true
+            reviewOriginalScroll.isHidden = segments.selectedIndex != 1
+            reviewOriginalScroll.frame = NSRect(x: 32, y: 112, width: min(640, cw - 64), height: h - 136)
+            reviewOriginal.arrange(width: reviewOriginalScroll.contentSize.width)
+            explanationText.isHidden = segments.selectedIndex != 2
+            for field in [promptText, originalText, explanationText] { field.frame = NSRect(x: 20, y: 112, width: cw - 40, height: h - 136) }
+        }
     }
 }

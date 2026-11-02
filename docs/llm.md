@@ -1,3 +1,9 @@
+# v0.4 更新
+
+2026-11-03 已将经验对话 V5 接入客户端：单／多条识别、独立多轮讨论、勾选后整理、可编辑候选和批量事务保存。客户端增加 DeepSeek Fetch 读取用户提供的公开链接；模型本身仍无工具，Keychain／本地库／插入不向模型开放。识别逐字验证引用，讨论与整理携带完整原文条件和本条历史，分类每次读最新数据库。十五色统一用于本地分类。实现、全部提示词入口、自运行脚本、计费与回滚边界见 [experience-dialogue.md](experience-dialogue.md)。
+
+下文是 v0.3 历史说明；其中“无网页抓取”“五色”等描述限于该版本。新增流程和最新测试记录以上述说明与 testing.md 为准。
+
 # v0.3 · DeepSeek 整理与可扩展分类
 
 2026-11-01 用户确认使用 **DeepSeek V4.1 Flash 1017**。客户端调用名为 `deepseek-flash`，官方文档当前将它映射到该版本；该别名今后可能由供应商升级。地址固定为 `https://api.deepseek.com/chat/completions`，开启 `thinking: enabled` 与 `reasoning_effort: high`。不增加模型/地址配置、工具调用、中转服务器或网页抓取。

@@ -5,3 +5,5 @@ Logo and SVG controls are exports from the user's approved Prompt Injector Figma
 AppIcon.png preserves the authored dark rounded tile and colorful logo, with the surrounding white canvas removed using imagegen. Its exact edit prompt is embedded in PNG metadata. Both the runtime application icon and the generated AppIcon.icns use this transparent source; Apple's sips and iconutil produce the packaged sizes. MenuBar.png remains the monochrome menu-bar template: its 36 pixels display at 18 logical points.
 
 These resources contain no runtime asset URLs. The local design context and private design-file identifiers remain in ignored development artifacts. Dynamic charts and editable text are native views, not flattened screenshots.
+
+V5 来源 Logo：SourceX.svg、SourceGitHub.svg、SourceReddit.svg 来自 Simple Icons 14.15.0（CC0），用于域名对应的平台标识，保留品牌商标含义。来源：https://cdn.jsdelivr.net/npm/simple-icons@14.15.0/icons/x.svg ，同目录 github.svg / reddit.svg。原五个分类圆点继续使用既有导出，新十色由同尺寸圆点绘制，统一十五色循环。

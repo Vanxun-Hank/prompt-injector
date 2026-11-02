@@ -116,7 +116,7 @@ final class DiagnosticLog: @unchecked Sendable {
     init(directory: URL, build: BuildIdentity = .current, sessionID: UUID = UUID(), maxFileBytes: Int = 1_048_576, archiveCount: Int = 3, mode: String? = nil) {
         directoryURL = directory; self.build = build; self.sessionID = sessionID
         self.maxFileBytes = max(2048, maxFileBytes); self.archiveCount = max(0, archiveCount)
-        self.mode = mode ?? (CommandLine.arguments.contains("--verify-ui") ? "ui-verification" : CommandLine.arguments.contains("--verify-termination") ? "headless-verification" : (CommandLine.arguments.contains("--verify-generation") || CommandLine.arguments.contains("--experiment-experiences")) ? "api-verification" : "application")
+        self.mode = mode ?? (CommandLine.arguments.contains("--verify-ui") ? "ui-verification" : CommandLine.arguments.contains("--verify-termination") ? "headless-verification" : (CommandLine.arguments.contains("--verify-experience") || CommandLine.arguments.contains("--verify-generation") || CommandLine.arguments.contains("--experiment-experiences")) ? "api-verification" : "application")
         queue.setSpecific(key: queueKey, value: true)
     }
 

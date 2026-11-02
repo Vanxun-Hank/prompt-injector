@@ -1,5 +1,17 @@
 # 客户端回归测试套件
 
+## 2026-11-03 · 经验讨论 V5 / v0.4.0
+
+最终完整 `python3 scripts/test-suite.py`（由新脚本 `verify-experience.py` 调用）通过 **102 Swift、9 Python、147 原生检查、29 张截图**。报告 `artifacts/tests/20261102T162434.250338Z/summary.json`，构建 `20261102T162441Z`，源码指纹 `d304150aced6f34ef18b938bcafcd57b7e74a97931ecc6cbb9554ab1f36d0da9`。新增实际加号／发送／文字讨论／方框独立点击、每轮分隔、最小双栏、原文只读、候选手改、批量保存和浮窗加载、取消／确认删除等检查。模拟服务全部只在隔离库和显式验证路径使用，不作为真实模型结果。
+
+同一构建真实验证 `artifacts/experience-verification/20261102T162434.202069Z/report.json`：实际 Fetch 用户给的 X 链接，识别20条，选前2条完成多轮讨论、结构化整理、候选编辑、临时 SQLite 保存与重开；其余18条保留在隔离草稿。`realAPI`、`fetchVerified`、`realMultiRound` 均为 true，`formalLibraryChanged` 与 `realCodexInsertion` 为 false。只验证这一个公开链接与两条候选，不承诺任意网页或模型语义普遍正确。
+
+开发回归保留：中断恢复版本冲突、首聊覆盖未发送输入、500条消息越界后无法保存、X回复混入及多行正文截断、审核原文空白与来源裁切。首聊／上限／多行三项在修复前3测试11断言失败，修复后通过，独立审查随后仅对这批修复判 resolved/ship；四张原生布局截图可交付。每条讨论与整理还传入完整原文背景，HTTP 断言验证全局条件可见。
+
+已把同一验证包更新到常用 Build 启动位置并实际打开新增经验双栏；运行 PID／版本／签名／逐文件摘要一致，记录 `artifacts/installation/v040/report.json`。更新前正常退出并备份旧包与两库；启动后逐字段核对旧用户表不变：28条、7分类、5使用事件、0旧编辑草稿。新增两张会话表仅是伴随库扩展，正式 schema 仍为v1。
+
+本轮未复测真实 Codex 跨应用插入、物理断网、真实系统权限拒绝与目标失效；既有逻辑回归通过不替代这些人工验收。用户可运行 `python3 scripts/verify-experience.py`；真实调用需显式加 `--live-api`，具体命令、限制和代码／数据恢复见 [experience-dialogue.md](experience-dialogue.md)。
+
 ## 2026-11-01 · 阅读 V2 / v0.3.1
 
 最终完整套件 `artifacts/tests/20261101T044433.502881Z/summary.json`：87 Swift、8 Python、129 原生检查、25 张 PNG 全通过。隔离审查包为 `build/Reading-V2-Review/Prompt Injector.app`，build ID `20261101T044439Z`，源码指纹 `07bdfd40b46de6b8de4d2423208c3d8e6b25f9777ce0857ade4f1b2228d464bd`。完整运行使用 PROMPT_INJECTOR_APP_OUTPUT 指向此独立目录，未覆盖原 Final-Review 包。

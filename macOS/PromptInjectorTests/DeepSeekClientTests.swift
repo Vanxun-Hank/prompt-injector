@@ -88,4 +88,66 @@ final class DeepSeekClientTests: XCTestCase {
         XCTAssertThrowsError(try client.request(experience: " ", source: "", categories: []))
         XCTAssertThrowsError(try client.request(experience: String(repeating: "字", count: 60001), source: "", categories: []))
     }
+    private func body(_ request: URLRequest) throws -> [String: Any] {
+        var data = request.httpBody ?? Data()
+        if let stream = request.httpBodyStream {
+            stream.open(); defer { stream.close() }; var buffer = [UInt8](repeating: 0, count: 4096)
+            while stream.hasBytesAvailable { let n = stream.read(&buffer, maxLength: buffer.count); if n <= 0 { break }; data.append(buffer, count: n) }
+        }
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+    func testFetchAndIdentifyUseProviderOnlyAndPreserveExactQuotes() async throws {
+        let client = DeepSeekClient(session: session, key: { "fixture-key" }), raw = "仅可复现时先测试。"
+        DeepSeekProtocol.respond = { request in
+            XCTAssertEqual(request.url?.host, "api.deepseek.com"); XCTAssertEqual(request.url?.path, "/v1/tools/fetch")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer fixture-key")
+            XCTAssertEqual(try self.body(request)["url"] as? String, "https://example.com/article")
+            return (200, try JSONSerialization.data(withJSONObject: ["title": "公开文章", "content": raw]))
+        }
+        let fetched = try await client.fetch(URL(string: "https://example.com/article")!); XCTAssertEqual(fetched, raw)
+        DeepSeekProtocol.respond = { request in
+            let body = try self.body(request)
+            XCTAssertNil(body["tools"]); XCTAssertNotNil(body["response_format"])
+            let messages = try XCTUnwrap(body["messages"] as? [[String: String]])
+            let input = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(XCTUnwrap(messages[1]["content"]).utf8)) as? [String: String])
+            XCTAssertEqual(input["originalText"], raw)
+            return (200, try self.response("{\"experiences\":[{\"title\":\"先测试\",\"original\":\"仅可复现时先测试。\"}]}"))
+        }
+        let items = try await client.identify(fetched); XCTAssertEqual(items.first?.original, raw)
+        DeepSeekProtocol.respond = { _ in (404, Data("private error".utf8)) }
+        do { _ = try await client.fetch(URL(string: "https://example.com/missing")!); XCTFail("Unavailable page accepted") }
+        catch GenerationFailure.fetchUnavailable { }
+    }
+    func testDiscussionSendsOnlyCurrentHistoryAndOrganizeSendsFreshCategoriesAndDiscussion() async throws {
+        let client = DeepSeekClient(session: session, key: { "fixture-key" })
+        let context = "全篇仅适用于能稳定复现的问题。\n仅可复现时先测试。"
+        var item = ExperienceItem(title: "先验证", original: "仅可复现时先测试。")
+        item.messages = [.init(role: .user, content: "为什么？"), .init(role: .assistant, content: "先固定问题。"), .init(role: .user, content: "请保留这个前提。")]
+        DeepSeekProtocol.respond = { request in
+            let body = try self.body(request), messages = try XCTUnwrap(body["messages"] as? [[String: String]])
+            XCTAssertNil(body["tools"]); XCTAssertNil(body["response_format"])
+            let input = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(XCTUnwrap(messages[1]["content"]).utf8)) as? [String: Any])
+            XCTAssertEqual(input["originalContext"] as? String, context)
+            XCTAssertEqual(Array(messages.suffix(3)).compactMap { $0["content"] }, item.messages.map(\.content))
+            return (200, try self.response("原文的条件必须保留。"))
+        }
+        let reply = try await client.discuss(item, source: "本人", context: context); XCTAssertEqual(reply, "原文的条件必须保留。")
+        DeepSeekProtocol.respond = { request in
+            let body = try self.body(request), messages = try XCTUnwrap(body["messages"] as? [[String: String]])
+            let input = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(XCTUnwrap(messages[1]["content"]).utf8)) as? [String: Any])
+            XCTAssertEqual((input["discussion"] as? [[String: String]])?.last?["content"], "请保留这个前提。")
+            XCTAssertEqual(input["originalContext"] as? String, context)
+            XCTAssertEqual((input["categories"] as? [[String: String]])?.last?["id"], "live-sixth")
+            return (200, try self.response(self.candidateJSON))
+        }
+        _ = try await client.organize(item, source: "本人", context: context, categories: PromptCategory.initial + [.init(id: "live-sixth", name: "新增类", symbol: "folder")])
+    }
+    func testSocialFetchDoesNotAttributeRepliesToTheLinkedAuthor() async throws {
+        let post = "1. 保留适用条件。2. 真实运行检查。"
+        let markdown = "# X 上的作者：“\(post)”\n\n- \(post)\n- 回复：把所有要求一律变成必须执行。"
+        DeepSeekProtocol.respond = { _ in (200, try JSONSerialization.data(withJSONObject: ["title": "公开帖子", "content": markdown])) }
+        let client = DeepSeekClient(session: session, key: { "fixture-key" })
+        let result = try await client.fetch(URL(string: "https://x.com/author/status/1")!)
+        XCTAssertEqual(result, post)
+    }
 }

@@ -25,6 +25,10 @@ class SuiteReportTests(unittest.TestCase):
         names += ['generation/candidate-is-editable', 'generation/candidate-does-not-overwrite', 'generation/adoption-preserves-original-source',
                   'categories/new-name-entire-control-visible', 'categories/sixth-sidebar-preview', 'categories/sixth-launcher-list', 'categories/sixth-launcher-full-prompt', 'categories/sixth-statistics']
         names += ['reading/prompt-only-verbatim', 'reading/original-source-verbatim', 'reading/explanation-only', 'categories/growing-sidebar-scroll']
+        names += ['experience/identified-exact-original', 'experience/checkbox-does-not-discuss', 'experience/per-round-divider',
+                  'experience/reopen-discussion-and-input', 'experience/batch-saved-with-sixth-category',
+                  'experience/saved-immediately-loads-in-launcher', 'experience/deleted-entry-no-longer-loads']
+        names += ['capture/experience-'+n for n in ['chat','minimum','review','original']]
         names += [f'check/{i}' for i in range(90-len(names))]
         return {'passed':True,'checks':[{'name':n,'passed':True} for n in names]}
     def testFailingAnimationCannotBeHiddenByTopLevelPassedFlag(self):
@@ -44,4 +48,10 @@ class SuiteReportTests(unittest.TestCase):
     def testMissingGenerationEvidenceCannotReuseOldManagementPass(self):
         report=self.valid_report()
         report['checks']=[c for c in report['checks'] if c['name']!='categories/sixth-statistics']
+        self.assertFalse(suite.validate_ui_report(report))
+
+    def testMissingExperienceChecksCannotReuseEarlierUIPass(self):
+        report = self.valid_report()
+        self.assertTrue(suite.validate_ui_report(report))
+        report['checks'] = [c for c in report['checks'] if c['name'] != 'experience/checkbox-does-not-discuss']
         self.assertFalse(suite.validate_ui_report(report))

@@ -126,3 +126,13 @@ python3 scripts/test-suite.py --headless
 后续开发先读 [AGENTS.md](AGENTS.md)。项目背景在 [PRODUCT.md](PRODUCT.md)，代码边界在 [架构文档](docs/architecture.md)，设计规则在 [DESIGN.md](DESIGN.md)。每个可用小版本单独提交、运行回归套件、留下变更与回滚说明；见 [开发与回滚约定](docs/development.md) 和 [CHANGELOG](CHANGELOG.md)。
 
 许可证尚未指定。
+
+## v0.4 经验讨论验证
+
+管理页加号支持原文／链接录入、多条独立讨论、勾选、候选审核与批量保存；完整流程、付费 API 与数据恢复边界见 [经验讨论说明](docs/experience-dialogue.md)。
+
+```sh
+python3 scripts/verify-experience.py
+```
+
+默认运行完整本地回归，不调用 API、不改正式库，审查包输出至独立目录。`--headless` 是部分检查；`--live-api` 显式使用现有 Keychain 凭证做付费真实验证，`--source-url` 可额外验证公开链接。原有 `python3 scripts/test-suite.py` 入口继续保留。

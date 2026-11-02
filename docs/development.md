@@ -108,3 +108,7 @@ bash scripts/build-app.sh
 完成已授权的本机更新时：正常退出旧进程并等待队列排空；成对备份两库和旧包；把通过回归的同一签名包暂存并验证，再替换常用路径。从该路径重新打开后，同时核对实际 PID 路径、app.started 的版本／build ID／源码指纹、签名及原生窗口。仅 `build/Prompt Injector.app` 链接或“已打开审查包”不算常用安装交付。
 
 本次直接复制已验证 v0.3.1，没有重新编译。安装文件逐文件摘要与审查包一致；常用路径实际启动 build 20261101T044439Z。正式主库条目／分类与伴随库草稿／使用事件均与更新前备份逐表一致。证据：artifacts/installation/20261102T130352/report.json 和 installed-app.png。旧包／两库备份：`~/Library/Application Support/Prompt Injector/Backups/before-installed-v031-20261102T130352/`。仅恢复应用包不恢复数据；v0.2.0 仍有固定分类假设，不建议用它继续操作新增分类。
+
+## v0.4 本机更新验收 · 2026-11-03
+
+完整隔离套件与真实API通过后，正常退出v0.3.1，备份旧包和两库，再将同一签名包从 Experience-Review 复制到常用启动位置。实际PID62919运行 v0.4.0 / build20261102T162441Z / fingerprint d304150aced6f34ef18b938bcafcd57b7e74a97931ecc6cbb9554ab1f36d0da9，权限trusted=true，快捷键注册成功；实际加号进入新版双栏。已有categories/prompts/editor_drafts/usage_events逐字段不变，保留28条、7分类、5事件与0旧草稿。备份目录及逐文件校验记录见 artifacts/installation/v040/backup.json、report.json；不以此代替真实跨应用插入／物理断网验收。

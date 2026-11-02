@@ -1,6 +1,6 @@
 # 阶段与验收
 
-当前状态（2026-10-30）：**Stage 1 在当前 macOS / Codex 普通主输入框范围验收完成；用户已明确授权 Stage 2 管理页与整套 Figma UI 移植，开发版已通过内容与原生 UI 回归**。Stage 1 的 SQLite 分层存储、真实在线/断网插入不发送、未授权拒绝和复制降级、原目标失效保护与性能证据见 [stage1-acceptance.md](stage1-acceptance.md)。新版状态见下文；原型沿革和授权记录在 [prototype.md](prototype.md)。
+历史基线（2026-10-30）：**Stage 1 在当前 macOS / Codex 普通主输入框范围验收完成；用户已明确授权 Stage 2 管理页与整套 Figma UI 移植，开发版已通过内容与原生 UI 回归**。Stage 1 的 SQLite 分层存储、真实在线/断网插入不发送、未授权拒绝和复制降级、原目标失效保护与性能证据见 [stage1-acceptance.md](stage1-acceptance.md)。新版状态见下文；原型沿革和授权记录在 [prototype.md](prototype.md)。
 
 ## Stage 1 · v0.1 · 快捷调用
 
@@ -30,7 +30,11 @@
 
 验收：真实 API 整理、候选编辑、原文/来源保真、临时 SQLite 保存与重开已验证；完整自动化 84 Swift / 8 Python / 122 原生检查、22 截图通过。超时、失败、取消和迟到结果保护、动态分类端到端由模拟 HTTP 与隔离数据回归覆盖。真实新条目跨应用插入与物理断网未在本轮重测，见 llm.md / testing.md。
 
-## Stage 4 · v0.4 · 云端保存与同步（未实现）
+## Stage 3 扩展 · v0.4.0 · 经验讨论与批量整理
+
+已接入 V5 双栏原生 UI 与真实 DeepSeek 取文、识别、逐条多轮讨论、勾选、候选审核及批量事务保存；新增删除确认、来源 Logo 和十五色循环。旧内容调用保持本地，原始字段、旧草稿与历史事件保留。自运行脚本为 `python3 scripts/verify-experience.py`，复用现有 test-suite；真实 API 显式开启且只写临时库。实现与验收边界见 [experience-dialogue.md](experience-dialogue.md)、[testing.md](testing.md)，不将本版本号解释为 Stage 4 同步已实现。
+
+## Stage 4 · 云端保存与同步（后续，版本待定）
 
 范围：PostgreSQL 正式内容、稳定 ID 迁移、SQLite 缓存和草稿；启动/保存后/手动刷新；版本检查、删除传播、独立备份。私人接口使用访问凭证，无注册登录 UI。
 

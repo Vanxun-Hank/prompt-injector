@@ -64,3 +64,13 @@
 | 编号 | 根因 | 处理 | 验证 |
 | --- | --- | --- | --- |
 | PI-020 | v0.3.1 仅打开独立审查包，实际常用 Build 路径仍为 v0.2.0；后续从旧入口重开就回到旧 UI | 正常退出、备份旧包与两库，校验后复制同一签名 v0.3.1 到常用位置，重新启动；交付检查补入 development.md | 更新前实际 PID 路径和 build=20261030T162750Z；更新后同路径 PID=46702、build=20261101T044439Z，签名／逐文件摘要一致；原生三页阅读与七分类可见，两库所有用户表比对不变。安装断言和记录在 artifacts/installation/20261102T130352/report.json；未改客户端源码，不以旧完整套件冒充本轮重跑 |
+
+
+## v0.4 开发回归 · 2026-11-03
+
+| 编号 | 根因 | 修复与证据 |
+| --- | --- | --- |
+| PI-021 | 恢复 pending 请求时改成 failed，但草稿版本未推进，后续同版本内容校验冲突 | 恢复状态改变同步推进版本；ExperienceTests.testInterruptedRequestCanReopenAndPersistWithoutRevisionConflict 修复前真实失败、修复后通过 |
+| PI-022 | Fetch 的 X 标题与正文重复、后附回复；将整个页面交给识别会混入评论 | 只对完整引号匹配且无续行的已知单行格式取主体，未知／多行完整保留；识别提示词限定主体作者。DeepSeekClientTests.testSocialFetchDoesNotAttributeRepliesToTheLinkedAuthor 修复前失败，真实 X 复验识别20条；语义仍需审核 |
+| PI-023 | 审核原文复用长文本编辑容器，隐藏切换时实际截图为空；来源只读字段还出现多行裁切 | 原文改用现有只读 TextDocument；来源限单行并保留全文 tooltip。修复前后原生截图存档，experience/original-visible 与原句保真检查通过，不以字符串存在替代目测 |
+| PI-024 | 首次点讨论无条件覆盖 input；消息达到500后追加会使草稿永远无法校验保存；X裁切还可能丢失多行作者续文 | 开场独立于未发送输入；变更前预留用户／回复名额；多行和未知格式原样保留。三个最小回归修复前3测试11断言失败，修复后通过；独立复核仅对此批修复判 resolved/ship |

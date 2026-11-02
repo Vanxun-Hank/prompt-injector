@@ -34,13 +34,15 @@ struct GeneratedPrompt: Codable, Equatable {
 }
 
 enum GenerationFailure: Error, LocalizedError {
-    case missingKey, emptyExperience, tooLong, invalidOutput, http(Int), keychain(Int32)
+    case missingKey, emptyExperience, tooLong, invalidOutput, fetchUnavailable, conversationTooLong, http(Int), keychain(Int32)
     var errorDescription: String? {
         switch self {
         case .missingKey: return "请先配置 DeepSeek API key。"
         case .emptyExperience: return "请先粘贴原始经验。"
         case .tooLong: return "原始经验过长，请缩短后重试（最多 60,000 字）。"
         case .invalidOutput: return "整理结果不完整或格式无效，请重试。"
+        case .fetchUnavailable: return "暂时读不到这个链接，请粘贴正文继续。"
+        case .conversationTooLong: return "这条经验的对话已达上限，请先整理；当前输入已保留。"
         case .http(401): return "DeepSeek API key 无效，请重新配置。"
         case .http(402): return "DeepSeek 余额不足，请检查账户。"
         case .http(429): return "DeepSeek 请求过多，请稍后重试。"

@@ -25,6 +25,7 @@ import Carbon
         DiagnosticLog.shared.write(.appStarted)
         if CommandLine.arguments.contains("--apply-experiment-review") { applyExperienceReview(); return }
         if CommandLine.arguments.contains("--experiment-experiences") { runExperienceExperiment(); return }
+        if CommandLine.arguments.contains("--verify-experience") { runExperienceVerification(); return }
         if CommandLine.arguments.contains("--verify-generation") { runGenerationVerification(); return }
         if let index = CommandLine.arguments.firstIndex(of: "--verify-termination"), CommandLine.arguments.count > index + 1 {
             // Headless process regression: no window, menu, shortcut registration or external target capture.

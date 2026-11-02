@@ -225,6 +225,7 @@ extension AppDelegate {
             backdrop.orderOut(nil)
             let managementChecks = await verifyManagement(output: output)
             checks.append(contentsOf: managementChecks)
+            checks.append(contentsOf: await verifyExperiences(output: output))
             let report: [String: Any] = ["buildID": BuildIdentity.current.buildID, "sourceFingerprint": BuildIdentity.current.sourceFingerprint, "sessionID": DiagnosticLog.shared.sessionID.uuidString, "completedAt": ISO8601DateFormatter().string(from: Date()), "checks": checks, "passed": checks.allSatisfy { $0["passed"] as? Bool == true }, "capture": "Live macOS desktop region with a controlled backdrop window", "macOS": ProcessInfo.processInfo.operatingSystemVersionString, "notVerified": ["Codex real input insertion and target loss after capture (requires app accessibility permission)", "Chinese input-source candidate selection (marked-text guard tested)", "manual edge/corner dragging", "changing global system reduced transparency setting (rendering path tested directly)"]]
             if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) {
                 try? data.write(to: URL(fileURLWithPath: output + "/report.json"))

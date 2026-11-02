@@ -95,3 +95,11 @@ Stage 4 才增加 PostgreSQL、版本、删除标记与同步游标。成功刷�
 ## 验证
 
 构建与单元测试命令见 [README](../README.md)。单元测试覆盖导航记忆、示例 ID/字段完整性、围栏代码字体、UTF-16 范围和剪贴板所有权/恢复；SQLite 临时库测试覆盖重启、事务、分层和故障；自动化不能替代真实跨应用插入或性能验收。完整入口见 [testing.md](testing.md)。运行检查、用户实测与限制统一见 [prototype.md](prototype.md)。
+
+## v0.4 经验会话与批量整理
+
+`ExperienceSession` 保存整篇原文、来源、版本号、当前条目及每条稳定 ID、原句、独立消息／未发送输入、勾选和候选。`ExperienceController` 在 MainActor 调度 UI，网络／编码／解析由非隔离的 DeepSeekClient 异步执行，SQLite 继续通过 PromptLibrary 串行队列。识别、讨论与整理各有系统提示词；讨论和整理携带完整原文背景保留全局条件，聊天历史仅来自当前条。LLM 无本机操作工具，Fetch 是客户端控制的 DeepSeek 读取接口。
+
+新会话草稿与按版本存档在伴随库的 experience_drafts / experience_archives；旧 editor_drafts 和 usage_events 保留，正式内容 schema 仍为 v1。批量保存复用 writeDraft，在同一个事务内去重新分类、写入选定 Prompt、存档原文／讨论并保留未选草稿；只有 commit 后通知。存档版本阻止迟到自动保存复活已保存批次。删除比较完整旧快照，提交后刷新管理与浮窗，历史事件与分类保留。
+
+当前分类色扩为十五种，由 Theme.categoryColor 和 DesignAssets.categoryDot 统一按完整数据库顺序映射；前五色不变，第16回第1。原生新增 ExperienceView 双栏，审核复用 PromptEditorView 的 reviewMode，原文使用既有只读 TextDocument。已有手工草稿继续使用原编辑器，不静默迁移丢失手改。具体流程、提示词、验证入口和恢复方法见 [experience-dialogue.md](experience-dialogue.md)。

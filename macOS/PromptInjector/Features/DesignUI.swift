@@ -3,9 +3,11 @@ import AppKit
 enum DesignAssets {
     static func categoryDot(_ id: String, in categories: [PromptCategory]) -> NSImage {
         let index = categories.firstIndex { $0.id == id }
-        let assetID = index.map { PromptCategory.initial[$0 % PromptCategory.initial.count].id } ?? id
-        return image("Dot-" + assetID, template: false) ?? NSImage(size: NSSize(width: 27, height: 27), flipped: false) { _ in
-            Theme.categoryColor(id, in: categories).setFill()
+        if let index, index % 15 < 5, let image = image("Dot-" + PromptCategory.initial[index % 15].id, template: false) { return image }
+        return NSImage(size: NSSize(width: 27, height: 27), flipped: false) { _ in
+            let color = Theme.categoryColor(id, in: categories)
+            let shadow = NSShadow(); shadow.shadowColor = color.withAlphaComponent(0.6); shadow.shadowBlurRadius = 7; shadow.shadowOffset = .zero; shadow.set()
+            color.setFill()
             NSBezierPath(ovalIn: NSRect(x: 10, y: 10, width: 7, height: 7)).fill()
             return true
         }
@@ -138,7 +140,7 @@ extension Theme {
     static let canvas = hex(0x0B0B0B), shell = hex(0x101010), panel = hex(0x151515)
     static let band = hex(0x1D1D1D), selection = hex(0x292929), border = hex(0x2B2B2B)
     static func categoryColor(_ id: String, in categories: [PromptCategory]) -> NSColor {
-        let palette: [UInt32] = [0xF5D975, 0x99A8FF, 0xFFAA85, 0xC5A0FF, 0xF699C8]
+        let palette: [UInt32] = [0xF5D975, 0x99A8FF, 0xFFAA85, 0xC5A0FF, 0xF699C8, 0x74D5A8, 0x71CDD9, 0xBEDA7B, 0xD8B279, 0x79B7EE, 0xD999AF, 0x9EBBA6, 0xB9A58F, 0xCED1A3, 0xAAAFCB]
         guard let index = categories.firstIndex(where: { $0.id == id }) else { return Theme.text }
         return hex(palette[index % palette.count])
     }
