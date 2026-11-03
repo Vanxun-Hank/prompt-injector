@@ -112,3 +112,7 @@ bash scripts/build-app.sh
 ## v0.4 本机更新验收 · 2026-11-03
 
 完整隔离套件与真实API通过后，正常退出v0.3.1，备份旧包和两库，再将同一签名包从 Experience-Review 复制到常用启动位置。实际PID62919运行 v0.4.0 / build20261102T162441Z / fingerprint d304150aced6f34ef18b938bcafcd57b7e74a97931ecc6cbb9554ab1f36d0da9，权限trusted=true，快捷键注册成功；实际加号进入新版双栏。已有categories/prompts/editor_drafts/usage_events逐字段不变，保留28条、7分类、5事件与0旧草稿。备份目录及逐文件校验记录见 artifacts/installation/v040/backup.json、report.json；不以此代替真实跨应用插入／物理断网验收。
+
+## v0.5 本机更新 · 2026-11-04
+
+V6 最终回归包原样安装，build20261103T163837Z／source d94a2d15362f0e4767628abbd9e57aeeebdde63d5ffab28f67ac5a084cf84ca4。备份 before-v050-20261103T163945Z 包含旧签名 App 和两库，Keychain 不变。正式库此时已是 0 条内容、7 分类；打开后内容和历史一致，已有经验草稿恢复并受用户并行操作，不能把草稿摘要变化算成安装数据丢失或声称逐字段不变。最新报告与恢复限制见 testing.md；不要恢复早期28条备份来覆盖后续有效状态。

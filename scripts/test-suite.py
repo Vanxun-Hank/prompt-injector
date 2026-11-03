@@ -34,13 +34,14 @@ def validate_ui_report(report):
                 'categories/new-name-entire-control-visible', 'categories/sixth-sidebar-preview', 'categories/sixth-launcher-list', 'categories/sixth-launcher-full-prompt', 'categories/sixth-statistics',
                 'reading/prompt-only-verbatim', 'reading/original-source-verbatim', 'reading/explanation-only', 'categories/growing-sidebar-scroll',
                 'capture/management-reading-original', 'capture/management-reading-explanation', 'capture/management-categories-scroll',
-                'experience/identified-exact-original', 'experience/checkbox-does-not-discuss', 'experience/per-round-divider',
-                'experience/reopen-discussion-and-input', 'experience/batch-saved-with-sixth-category',
+                'experience/identified-exact-original', 'experience/checkbox-does-not-discuss', 'experience/selection-preserves-prompt-without-chat',
+                'experience/reopen-independent-prompts', 'experience/batch-saved-with-sixth-category',
                 'experience/saved-immediately-loads-in-launcher', 'experience/deleted-entry-no-longer-loads',
-                'capture/experience-chat', 'capture/experience-minimum', 'capture/experience-review', 'capture/experience-original',
+                'experience/empty-prompt-blocks-review', 'experience/manual-paste-skips-generation', 'experience/manual-pair-fit', 'experience/audit-list-stashes-edits', 'experience/audit-list-restores-edits', 'experience/audit-fields-fit-minimum',
+                'capture/experience-review-minimum', 'capture/experience-new', 'capture/experience-manual', 'capture/experience-manual-minimum', 'capture/experience-organize', 'capture/experience-minimum', 'capture/experience-review', 'capture/experience-original',
                 'capture/management-candidate', 'capture/management-new-category', 'capture/management-sixth-statistics'}
     captures = [c for c in checks if str(c.get('name', '')).startswith('capture/')]
-    return (report.get('passed') is True and len(checks) >= 85 and len(captures) == 29
+    return (report.get('passed') is True and len(checks) >= 85 and len(captures) == 33
             and required <= names and all(c.get('passed') is True for c in checks))
 
 def main():

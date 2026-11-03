@@ -1,5 +1,27 @@
 # 客户端回归测试套件
 
+## 2026-11-04 · V6 / v0.5.0 · 最新
+
+通过 `python3 scripts/verify-experience.py` 自运行入口实际运行 `python3 scripts/test-suite.py`：**111 Swift、9 Python、157 原生检查、33 张 PNG** 全部通过。最终报告 `artifacts/tests/20261103T163827.630468Z/summary.json`，包装报告 `artifacts/experience-verification/20261103T163827.570925Z/report.json`。测试包 `build/Management-V6-Review/Prompt Injector.app`，build `20261103T163837Z`，源码指纹 `d94a2d15362f0e4767628abbd9e57aeeebdde63d5ffab28f67ac5a084cf84ca4`，版本 0.5.0。
+
+新增真实控制器／SQLite 回归：选择和粘贴不发网络、每条 Prompt 切换及重开保留；单条一键识别／生成后审核；最新分类、重新生成确认拒绝、超时重试、手改取消及迟到响应；零勾选／空 Prompt 阻止审核；旧 JSON 草稿与五百条历史消息保留；手动粘贴的简述／解释可空，API 解码仍严格完整。退出前仅有 Prompt 的草稿立即排空并从新 repository 读取，覆盖 PI-026。
+
+原生夹具通过默认／最小原文与 Prompt、并排手动录入、审核列表切换保留修改、右侧字段／新分类可见、原文和来源只读、批量事务保存、第六类、保存后浮窗立即加载、注入取消／确认删除。删除确认分支使用测试注入，不代表真实 NSAlert 实点。既有键盘插入路由和本地使用统计测试保留；这些不能替代真实跨应用填写。
+
+独立复核首次返回 fix，Prompt-only 退出、审核布局与来源 placeholder 三项已修复；第二轮仅对三项评分 resolved / ship，不声称全系统重审。默认套件为模拟 HTTP／fixture、临时数据；本轮未请求真实 DeepSeek、未做物理断网、真实 Codex 插入、系统 Reduce Motion／VoiceOver 或最低 macOS 验收。`--live-api` 保留为显式真实请求入口，已移除聊天步骤。
+
+同一通过包已备份后安装到常用路径并实际打开，PID 30927 路径与 build 相符。签名验证及逐文件摘要一致。安装前主库实际为 0 条内容／7 分类，伴随库为 5 使用记录／0 旧编辑草稿／1 经验草稿；打开后内容、分类和使用历史摘要不变。CUA 报告用户同时操作窗口，经验草稿 revision/currentID/items 后续发生变化，因此不声称草稿字节不变；草稿数仍 1，原有三条候选在新版恢复，未回填较早的 28 条备份。证据 `artifacts/installation/v050/report.json`、`installed-app.png`。
+
+本轮旧 App／两库备份：`~/Library/Application Support/Prompt Injector/Backups/before-v050-20261103T163945Z/`。恢复 App 只回退代码；恢复内容需先退出所有实例、另存当前状态，再成对恢复两库。Keychain 未改；旧版不能显示 V6 的 Prompt-only 未完成草稿，回退前先在新版完成或保留双库备份。
+
+## 2026-11-03 · 拆分边界补丁（未安装）
+
+完整 `python3 scripts/test-suite.py` 通过 **108 Swift、9 Python、147 原生检查、29 张截图**。报告 `artifacts/tests/20261103T124106.411928Z/summary.json`；审查包 `build/Boundary-Review/Prompt Injector.app`，构建 `20261103T124113Z`，指纹 `2e50be07d384ffd15670d58620174a2b66917270173ad605344f001c2d6d8402`。
+
+先失败后修复的回归覆盖一段不拆句、完整条件、二十个顶层编号、重复18续写、缩进子步骤、段落合并／漏段／重叠／重排、直接以1开头的单行列表（含尾换行和换行前言）、第100条，以及识别失败后草稿／来源重开与重试。独立代码复核初次要求修正后两项，第二次只对两项修复评分resolved／ship。源码中的 identify 请求携带实际 sourceUnits／numbered，HTTP夹具断言这些字段，不只检查提示词字符串。
+
+本轮没有真实API、跨应用插入、物理断网或安装验证，正式库与Keychain未改。V6为另行制作的Figma原型，九张指定截图视觉复核为可交用户审阅；网页版点通预设选择／审核／分类／保存／删除，与本次原生旧UI回归分开。详情见 [content-management-v6.md](content-management-v6.md)。
+
 ## 2026-11-03 · 经验讨论 V5 / v0.4.0
 
 最终完整 `python3 scripts/test-suite.py`（由新脚本 `verify-experience.py` 调用）通过 **102 Swift、9 Python、147 原生检查、29 张截图**。报告 `artifacts/tests/20261102T162434.250338Z/summary.json`，构建 `20261102T162441Z`，源码指纹 `d304150aced6f34ef18b938bcafcd57b7e74a97931ecc6cbb9554ab1f36d0da9`。新增实际加号／发送／文字讨论／方框独立点击、每轮分隔、最小双栏、原文只读、候选手改、批量保存和浮窗加载、取消／确认删除等检查。模拟服务全部只在隔离库和显式验证路径使用，不作为真实模型结果。

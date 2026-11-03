@@ -25,10 +25,10 @@ class SuiteReportTests(unittest.TestCase):
         names += ['generation/candidate-is-editable', 'generation/candidate-does-not-overwrite', 'generation/adoption-preserves-original-source',
                   'categories/new-name-entire-control-visible', 'categories/sixth-sidebar-preview', 'categories/sixth-launcher-list', 'categories/sixth-launcher-full-prompt', 'categories/sixth-statistics']
         names += ['reading/prompt-only-verbatim', 'reading/original-source-verbatim', 'reading/explanation-only', 'categories/growing-sidebar-scroll']
-        names += ['experience/identified-exact-original', 'experience/checkbox-does-not-discuss', 'experience/per-round-divider',
-                  'experience/reopen-discussion-and-input', 'experience/batch-saved-with-sixth-category',
+        names += ['experience/empty-prompt-blocks-review', 'experience/manual-paste-skips-generation', 'experience/manual-pair-fit', 'experience/audit-list-stashes-edits', 'experience/audit-list-restores-edits', 'experience/audit-fields-fit-minimum', 'experience/identified-exact-original', 'experience/checkbox-does-not-discuss', 'experience/selection-preserves-prompt-without-chat',
+                  'experience/reopen-independent-prompts', 'experience/batch-saved-with-sixth-category',
                   'experience/saved-immediately-loads-in-launcher', 'experience/deleted-entry-no-longer-loads']
-        names += ['capture/experience-'+n for n in ['chat','minimum','review','original']]
+        names += ['capture/experience-'+n for n in ['organize','minimum','review','original','new','manual','manual-minimum','review-minimum']]
         names += [f'check/{i}' for i in range(90-len(names))]
         return {'passed':True,'checks':[{'name':n,'passed':True} for n in names]}
     def testFailingAnimationCannotBeHiddenByTopLevelPassedFlag(self):

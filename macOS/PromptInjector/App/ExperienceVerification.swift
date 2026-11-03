@@ -42,31 +42,45 @@ extension AppDelegate {
         manager.root.newButton.performClick(nil)
         await until { manager.root.experienceView != nil }
         guard let model = manager.experience, let view = manager.root.experienceView else { return checks }
-        view.input.text.string = ExperienceFixtureService.raw; view.textDidChange(Notification(name: NSText.didChangeNotification))
+        await capture("experience-new")
+        view.input.text.string = ExperienceFixtureService.raw; view.textDidChange(Notification(name: NSText.didChangeNotification, object: view.input.text))
         view.sourceField.stringValue = "https://x.com/HiTw93/status/2115366100221501540"; view.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
         view.send.performClick(nil); await until { !model.busy && model.session.items.count == 2 }
         check("experience/identified-exact-original", model.session.items.map(\.original).joined(separator: "\n") == ExperienceFixtureService.raw)
-        let first = model.session.items[0].id, second = model.session.items[1].id
-        (view.table.view(atColumn: 0, row: 0, makeIfNecessary: true) as? ExperienceRowCell)?.discuss.performClick(nil); await until { !model.busy && model.current?.messages.count == 2 }
-        model.changeInput("所有规则都要脚本化吗？"); model.send(); await until { !model.busy && model.current?.messages.count == 4 }
+        let first = model.session.items[0].id
+        (view.table.view(atColumn: 0, row: 0, makeIfNecessary: true) as? ExperienceRowCell)?.discuss.performClick(nil)
+        model.changePrompt("用户粘贴的 Prompt"); model.choose(model.session.items[1].id)
+        model.generateCurrent(); await until { !model.busy && model.current?.candidate != nil }
+        model.choose(first)
+        check("experience/selection-preserves-prompt-without-chat", model.current?.candidate?.prompt == "用户粘贴的 Prompt" && model.session.items.allSatisfy { $0.messages.isEmpty })
         (view.table.view(atColumn: 0, row: 1, makeIfNecessary: true) as? ExperienceRowCell)?.checkbox.performClick(nil)
-        check("experience/checkbox-does-not-discuss", model.current?.id == first && model.session.items[1].selected && model.current?.messages.count == 4)
-        check("experience/per-round-divider", view.bubbles.filter { !$0.divider.isHidden }.count == 2)
-        await capture("experience-chat")
+        check("experience/checkbox-does-not-discuss", model.current?.id == first && model.session.items[1].selected && model.current?.messages.isEmpty == true)
+        await capture("experience-organize")
         window.setContentSize(NSSize(width: 1100, height: 720)); window.contentView?.layoutSubtreeIfNeeded()
-        check("experience/equal-columns-minimum", abs(view.panel.frame.width - view.chatScroll.frame.width) < 1)
-        check("experience/fixed-input-minimum", view.input.frame.maxY <= view.bounds.height && view.organize.frame.maxX <= view.panel.bounds.width)
-        view.chatScroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, view.chatBody.frame.height - view.chatScroll.contentSize.height)))
+        check("experience/prompt-and-original-fit-minimum", view.prompt.frame.height >= 150 && view.content.frame.maxX <= view.bounds.width && view.prompt.frame.maxY <= view.content.bounds.height)
+        check("experience/fixed-input-minimum", view.organize.frame.maxY <= view.panel.bounds.height && view.generate.frame.maxX <= view.content.bounds.width)
         await capture("experience-minimum")
-        model.changeInput("尚未发送的理解"); try? await model.finish()
-        let resumed = (try? repository.experienceDraft())
-        check("experience/reopen-discussion-and-input", resumed?.items[0].input == "尚未发送的理解" && resumed?.items[0].messages.count == 4)
-        (view.table.view(atColumn: 0, row: 0, makeIfNecessary: true) as? ExperienceRowCell)?.checkbox.performClick(nil); view.organize.performClick(nil); await until { !model.busy && manager.root.editor?.reviewMode == true }
+        try? await model.finish()
+        let resumed = try? repository.experienceDraft()
+        check("experience/reopen-independent-prompts", resumed?.items[0].candidate?.prompt == "用户粘贴的 Prompt" && resumed?.items[1].candidate != nil)
+        model.changePrompt(""); model.toggle(first); model.organize()
+        check("experience/empty-prompt-blocks-review", manager.root.page == .experience && model.failed)
+        model.changePrompt("用户粘贴的 Prompt"); view.organize.performClick(nil)
+        await until { manager.root.editor?.reviewMode == true }
         window.setContentSize(NSSize(width: 1440, height: 960)); window.contentView?.layoutSubtreeIfNeeded()
         guard let editor = manager.root.editor else { check("experience/review-open", false); window.orderOut(nil); return checks }
         check("experience/review-source-readonly", !editor.originalText.text.isEditable && !editor.sourceField.isEditable)
-        editor.titleField.stringValue = "审核后的短标题"; editor.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+        editor.titleField.stringValue = "审核后的短标题"; editor.summaryText.text.string = "有硬性规则时使用"; editor.explanationText.text.string = "保留方法与条件"; editor.addCategory(); editor.newCategoryField.stringValue = "学习与整理"; editor.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
         await capture("experience-review")
+        editor.reviewList.selectRowIndexes(IndexSet(integer: 1), byExtendingSelection: false)
+        check("experience/audit-list-stashes-edits", manager.root.editor !== editor)
+        manager.root.editor?.reviewList.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        guard let editor = manager.root.editor else { check("experience/audit-list-return", false); return checks }
+        check("experience/audit-list-restores-edits", editor.titleField.stringValue == "审核后的短标题")
+        window.setContentSize(NSSize(width: 1100, height: 720)); window.contentView?.layoutSubtreeIfNeeded()
+        check("experience/audit-fields-fit-minimum", editor.titleField.superview?.frame.minX == 24 && editor.promptText.frame.height >= 150 && editor.reviewListScroll.frame.maxY <= editor.info.bounds.height)
+        await capture("experience-review-minimum")
+        window.setContentSize(NSSize(width: 1440, height: 960)); window.contentView?.layoutSubtreeIfNeeded()
         editor.segments.selectedIndex = 1; editor.needsLayout = true; await capture("experience-original")
         check("experience/review-original-verbatim", editor.originalText.text.string == model.session.items[0].original)
         let original = editor.reviewOriginal
@@ -88,6 +102,18 @@ extension AppDelegate {
             check("experience/delete-cancel-keeps-entry", (try? repository.entry(id: entry.id, category: entry.categoryID)) != nil)
             manager.confirmDeletion = { _ in true }; manager.root.libraryView.deleteButton.performClick(nil); await until { !manager.isSaving }
             check("experience/deleted-entry-no-longer-loads", (try? repository.entry(id: entry.id, category: entry.categoryID)) == nil)
+        }
+        manager.presentExperience(ExperienceSession())
+        if let manualView = manager.root.experienceView, let manualModel = manager.experience {
+            manualView.manual.performClick(nil)
+            manualView.input.text.string = "手动录入的作者原文"; manualView.textDidChange(Notification(name: NSText.didChangeNotification, object: manualView.input.text))
+            manualView.prompt.text.string = "自己粘贴的明确指令"; manualView.textDidChange(Notification(name: NSText.didChangeNotification, object: manualView.prompt.text))
+            window.setContentSize(NSSize(width: 1440, height: 960)); await capture("experience-manual")
+            window.setContentSize(NSSize(width: 1100, height: 720)); await capture("experience-manual-minimum")
+            check("experience/manual-pair-fit", manualView.input.frame.maxX < manualView.prompt.frame.minX && manualView.prompt.frame.maxX <= manualView.content.bounds.width && manualView.prompt.frame.height >= 300)
+            manualView.send.performClick(nil)
+            check("experience/manual-paste-skips-generation", manager.root.editor?.promptText.text.string == "自己粘贴的明确指令" && manualModel.current?.original == "手动录入的作者原文" && !manualModel.busy)
+            try? await manualModel.finish()
         }
         await withCheckedContinuation { continuation in library.flush { continuation.resume() } }
         window.orderOut(nil)
@@ -114,18 +140,6 @@ extension AppDelegate {
                 stage = "identify"; session.items = try await service.identify(session.raw); session.currentID = session.items.first?.id; session.revision += 1
                 guard !session.items.isEmpty else { throw GenerationFailure.invalidOutput }
                 for i in session.items.indices.prefix(2) {
-                    session.items[i].messages.append(.init(role: .user, content: "请用短句解释方法和适用条件。"))
-                    session.revision += 1; try await library.storeExperienceDraft(session)
-                    stage = "discuss"; let answer = try await service.discuss(session.items[i], source: session.source, context: session.raw)
-                    session.items[i].messages.append(.init(role: .assistant, content: answer))
-                    session.revision += 1; try await library.storeExperienceDraft(session)
-                    if i == 0 {
-                        session.items[i].messages.append(.init(role: .user, content: "请再说明哪些情况不适用；原文没写清的地方请明确说明。"))
-                        session.revision += 1; try await library.storeExperienceDraft(session)
-                        let followup = try await service.discuss(session.items[i], source: session.source, context: session.raw)
-                        session.items[i].messages.append(.init(role: .assistant, content: followup)); session.revision += 1
-                        try await library.storeExperienceDraft(session)
-                    }
                     stage = "organize"; session.items[i].candidate = try await service.organize(session.items[i], source: session.source, context: session.raw, categories: repository.categories())
                     guard let candidate = session.items[i].candidate else { throw GenerationFailure.invalidOutput }
                     session.items[i].candidate = GeneratedPrompt(title: candidate.title + "（验证编辑）", summary: candidate.summary, explanation: candidate.explanation, prompt: candidate.prompt, categoryID: candidate.categoryID, newCategoryName: candidate.newCategoryName)
@@ -138,11 +152,11 @@ extension AppDelegate {
                     guard try reopened.entry(id: entry.id, category: entry.categoryID) == entry, entry.originalExperience == item.original,
                           entry.source == session.source, entry.title.hasSuffix("（验证编辑）") else { throw LibraryFailure.conflict }
                 }
-                let report: [String: Any] = ["passed": true, "realAPI": true, "realMultiRound": true, "fetchVerified": fetchVerified, "itemCount": saved.count, "identifiedCount": session.items.count,
+                let report: [String: Any] = ["passed": true, "realAPI": true, "realMultiRound": false, "fetchVerified": fetchVerified, "itemCount": saved.count, "identifiedCount": session.items.count,
                     "buildID": BuildIdentity.current.buildID, "sourceFingerprint": BuildIdentity.current.sourceFingerprint,
                     "formalLibraryChanged": false, "realCodexInsertion": false]
                 try JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]).write(to: directory.appendingPathComponent("report.json"), options: .atomic)
-                print("Real experience identification, discussion, candidate edit, save and reopen passed.")
+                print("Real experience identification, organization, candidate edit, save and reopen passed.")
                 DiagnosticLog.shared.flush(); NSApp.terminate(nil)
             } catch {
                 let report: [String: Any] = ["passed": false, "stage": stage, "systemCode": (error as NSError).code, "realAPI": true, "fetchVerified": fetchVerified, "formalLibraryChanged": false]

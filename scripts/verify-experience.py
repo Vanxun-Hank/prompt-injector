@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the experience workflow in isolated data; live API calls require --live-api."""
+"""Verify V6 raw/Prompt editing, optional generation, review and save in isolated data; live API calls require --live-api."""
 import argparse
 import datetime
 import json
@@ -23,7 +23,7 @@ def main():
     output = ROOT / 'artifacts/experience-verification' / stamp
     output.mkdir(parents=True)
     env = os.environ.copy()
-    app = Path(env.setdefault('PROMPT_INJECTOR_APP_OUTPUT', str(ROOT / 'build/Experience-Review/Prompt Injector.app')))
+    app = Path(env.setdefault('PROMPT_INJECTOR_APP_OUTPUT', str(ROOT / 'build/Management-V6-Review/Prompt Injector.app')))
     report = {'passed': False, 'scope': 'headless-partial' if args.headless else 'native-ui-full',
               'liveAPIRequested': args.live_api, 'linkRequested': bool(args.source_url), 'formalLibraryChanged': False}
     try:

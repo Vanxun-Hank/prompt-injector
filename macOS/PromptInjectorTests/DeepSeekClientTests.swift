@@ -109,8 +109,9 @@ final class DeepSeekClientTests: XCTestCase {
             let body = try self.body(request)
             XCTAssertNil(body["tools"]); XCTAssertNotNil(body["response_format"])
             let messages = try XCTUnwrap(body["messages"] as? [[String: String]])
-            let input = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(XCTUnwrap(messages[1]["content"]).utf8)) as? [String: String])
-            XCTAssertEqual(input["originalText"], raw)
+            let input = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(XCTUnwrap(messages[1]["content"]).utf8)) as? [String: Any])
+            XCTAssertEqual(input["originalText"] as? String, raw)
+            XCTAssertEqual(input["sourceUnits"] as? [String], [raw]); XCTAssertEqual(input["numbered"] as? Bool, false)
             return (200, try self.response("{\"experiences\":[{\"title\":\"先测试\",\"original\":\"仅可复现时先测试。\"}]}"))
         }
         let items = try await client.identify(fetched); XCTAssertEqual(items.first?.original, raw)
@@ -135,7 +136,7 @@ final class DeepSeekClientTests: XCTestCase {
         DeepSeekProtocol.respond = { request in
             let body = try self.body(request), messages = try XCTUnwrap(body["messages"] as? [[String: String]])
             let input = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(XCTUnwrap(messages[1]["content"]).utf8)) as? [String: Any])
-            XCTAssertEqual((input["discussion"] as? [[String: String]])?.last?["content"], "请保留这个前提。")
+            XCTAssertNil(input["discussion"], "V6 generation must not revive legacy chat requirements")
             XCTAssertEqual(input["originalContext"] as? String, context)
             XCTAssertEqual((input["categories"] as? [[String: String]])?.last?["id"], "live-sixth")
             return (200, try self.response(self.candidateJSON))

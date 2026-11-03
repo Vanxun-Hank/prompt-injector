@@ -41,8 +41,8 @@ cat > "$app_dir/Contents/Info.plist" <<'PLIST'
 <key>CFBundleDisplayName</key><string>Prompt Injector</string>
 <key>CFBundleExecutable</key><string>PromptInjector</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.4.0</string>
-<key>CFBundleVersion</key><string>5</string>
+<key>CFBundleShortVersionString</key><string>0.5.0</string>
+<key>CFBundleVersion</key><string>6</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>LSUIElement</key><true/>
@@ -69,7 +69,7 @@ codesign --verify --strict "$app_dir"
 project_app="$PWD/build/Prompt Injector.app"
 mkdir -p "$PWD/build"
 cat > "$PWD/build/build-info.json" <<META
-{"version":"0.4.0","buildID":"$build_id","sourceFingerprint":"$source_fingerprint","revision":"$revision"}
+{"version":"0.5.0","buildID":"$build_id","sourceFingerprint":"$source_fingerprint","revision":"$revision"}
 META
 if [ "$app_dir" != "$project_app" ]; then
   if [ -d "$project_app" ] && [ ! -L "$project_app" ]; then

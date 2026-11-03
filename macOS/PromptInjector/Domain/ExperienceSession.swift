@@ -35,6 +35,7 @@ struct ExperienceSession: Codable, Equatable {
     var source = ""
     var raw = ""
     var items: [ExperienceItem] = []
+    var manualPrompt: String?
     var currentID: String?
     var current: ExperienceItem? { items.first { $0.id == currentID } }
     var selected: [ExperienceItem] { items.filter(\.selected) }
@@ -42,13 +43,13 @@ struct ExperienceSession: Codable, Equatable {
         var next = self
         next.items.removeAll(where: \.selected)
         next.currentID = next.items.first?.id
-        if next.items.isEmpty { next.input = ""; next.raw = ""; next.source = "" }
+        if next.items.isEmpty { next.input = ""; next.raw = ""; next.source = ""; next.manualPrompt = nil }
         next.revision += 1
         return next
     }
     func validate() throws {
         guard UUID(uuidString: id) != nil, revision >= 0, input.count <= 60_000, source.count <= 10_000,
-              raw.count <= 60_000, items.count <= 100,
+              raw.count <= 60_000, (manualPrompt?.count ?? 0) <= 32_000, items.count <= 100,
               Set(items.map(\.id)).count == items.count else { throw GenerationFailure.invalidOutput }
         for item in items {
             guard UUID(uuidString: item.id) != nil, !item.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,

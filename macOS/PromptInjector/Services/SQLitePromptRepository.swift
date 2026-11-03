@@ -41,7 +41,7 @@ extension SQLitePromptRepository: ExperienceRepository {
             var entries: [PromptEntry] = []
             for item in session.selected {
                 guard let candidate = item.candidate else { throw GenerationFailure.invalidOutput }
-                try candidate.validate(categories: categories())
+                try candidate.validate(categories: categories(), requiringDescriptions: false)
                 entries.append(try writeDraft(item.entry(source: session.source)))
             }
             let payload = String(decoding: try JSONEncoder().encode(session), as: UTF8.self)

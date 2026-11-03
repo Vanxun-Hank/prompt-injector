@@ -74,3 +74,13 @@
 | PI-022 | Fetch 的 X 标题与正文重复、后附回复；将整个页面交给识别会混入评论 | 只对完整引号匹配且无续行的已知单行格式取主体，未知／多行完整保留；识别提示词限定主体作者。DeepSeekClientTests.testSocialFetchDoesNotAttributeRepliesToTheLinkedAuthor 修复前失败，真实 X 复验识别20条；语义仍需审核 |
 | PI-023 | 审核原文复用长文本编辑容器，隐藏切换时实际截图为空；来源只读字段还出现多行裁切 | 原文改用现有只读 TextDocument；来源限单行并保留全文 tooltip。修复前后原生截图存档，experience/original-visible 与原句保真检查通过，不以字符串存在替代目测 |
 | PI-024 | 首次点讨论无条件覆盖 input；消息达到500后追加会使草稿永远无法校验保存；X裁切还可能丢失多行作者续文 | 开场独立于未发送输入；变更前预留用户／回复名额；多行和未知格式原样保留。三个最小回归修复前3测试11断言失败，修复后通过；独立复核仅对此批修复判 resolved/ship |
+
+## 经验识别过度拆分 · 2026-11-03
+
+| 编号 | 根因 | 修复与验证 |
+| --- | --- | --- |
+| PI-025 | 只验证引用是原文子串，允许同一条切碎、漏条件、重排与重叠；只靠提示词保持作者编号不可靠 | 请求前锁定 sourceUnits，顶层连续编号一一对应，无编号只允许合并相邻整段。拒绝不合边界结果，输入、来源和草稿保留可重试。ExperienceTests.testExtraction* 修复前新增8断言失败；边界失败重开／重试案例通过。独立审查又发现单行从1开始及第100条漏认，追加用例先失败后修复，第二轮只对这两项评分resolved／ship。最终108 Swift／9 Python／147原生检查／29图全通过，见testing.md。无真实API、正式数据改写或安装；不追改旧条目。 |
+
+## PI-026 · V6 仅粘贴 Prompt 后立即退出可能漏存
+
+复核发现 finish 仅检查 items/input；手动模式先填 Prompt、原文为空且未到 350 ms 自动保存时，退出不会排空该内容。修复 guard 同时检查 manualPrompt 与来源，全部批次保存后清空 manualPrompt。最小回归 ExperienceTests.testPromptOnlyManualDraftFlushesOnImmediateClose，覆盖立即结束并从新 repository 重开。旧输入与消息仍保留。

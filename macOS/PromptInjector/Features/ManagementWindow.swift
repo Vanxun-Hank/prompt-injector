@@ -64,7 +64,7 @@ final class SearchBox: SurfaceView {
 
 @MainActor final class ManagementRoot: FlippedView {
     enum Page { case library, editor, statistics, experience }
-    var page: Page = .library { didSet { needsLayout = true } }
+    var page: Page = .library { didSet { if oldValue != page { PageTransition.fade(self, duration: page == .library ? 0.14 : 0.18) }; needsLayout = true } }
     let sidebar = SurfaceView(color: Theme.shell, radius: 0, border: nil)
     let logo = LogoView(frame: .zero)
     let brand = Theme.label("Prompt Injector", size: 15, weight: .semibold)
@@ -189,7 +189,7 @@ final class ManagementSummaryCell: NSTableCellView {
 }
 
 @MainActor final class ManagementLibraryView: FlippedView, NSTableViewDataSource, NSTableViewDelegate {
-    let listPanel = SurfaceView(), preview = SurfaceView()
+    let listPanel = SurfaceView(color: Theme.shell), preview = SurfaceView(color: Theme.shell)
     let table = NSTableView(), listScroll = NSScrollView()
     let categoryLabel = Theme.label(size: 13, weight: .medium)
     let heading = Theme.label(size: 22, weight: .medium), summary = Theme.label(size: 13, color: Theme.secondary)
@@ -197,7 +197,7 @@ final class ManagementSummaryCell: NSTableCellView {
     let document = TextDocument(), scroll = NSScrollView()
     let segments = ChoiceSegments(["Prompt", "作者原文", "整理说明"])
     let copyButton = ActionButton(title: "", symbol: "doc.on.doc", target: nil, action: nil), editButton = ActionButton(title: "", symbol: "pencil", target: nil, action: nil)
-    let deleteButton = ActionButton(title: "删除", symbol: "trash", target: nil, action: nil)
+    let deleteButton = ActionButton(title: "", symbol: "trash", target: nil, action: nil)
     let sourceButton = ActionButton(title: "", symbol: nil, target: nil, action: nil)
     var onSelect: ((ManagedSummary) -> Void)?
     private(set) var items: [ManagedSummary] = []
@@ -217,10 +217,10 @@ final class ManagementSummaryCell: NSTableCellView {
         copyButton.outlined = true; editButton.outlined = true
         copyButton.toolTip = "复制完整 Prompt"; copyButton.setAccessibilityLabel("复制完整 Prompt")
         editButton.toolTip = "编辑条目"; editButton.setAccessibilityLabel("编辑条目")
-        deleteButton.outlined = true; deleteButton.setAccessibilityLabel("删除当前条目")
+        deleteButton.toolTip = "删除条目"; deleteButton.outlined = true; deleteButton.setAccessibilityLabel("删除当前条目")
         sourceButton.onPress = { [weak self] in if let url = self?.entry.flatMap({ SourceLink.inSource($0.source) }) { NSWorkspace.shared.open(url) } }
         segments.onSelect = { [weak self] _ in
-            guard let self else { return }; self.updateDocument(); self.scroll.contentView.scroll(to: .zero); self.scroll.reflectScrolledClipView(self.scroll.contentView)
+            guard let self else { return }; PageTransition.fade(self.scroll, duration: 0.12); self.updateDocument(); self.scroll.contentView.scroll(to: .zero); self.scroll.reflectScrolledClipView(self.scroll.contentView)
         }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -292,7 +292,7 @@ final class ManagementSummaryCell: NSTableCellView {
         rule.frame = NSRect(x: pad, y: segments.frame.maxY + 24, width: width, height: 1)
         scroll.frame = NSRect(x: pad, y: rule.frame.maxY + 24, width: min(640, width), height: max(40, h - 112 - rule.frame.maxY))
         copyButton.frame = NSRect(x: w - pad - 90, y: h - 64, width: 40, height: 40); editButton.frame = NSRect(x: w - pad - 40, y: h - 64, width: 40, height: 40)
-        deleteButton.frame = NSRect(x: pad, y: h - 64, width: 80, height: 40)
+        deleteButton.frame = NSRect(x: pad, y: h - 64, width: 40, height: 40)
         document.arrange(width: scroll.contentSize.width)
     }
 }
@@ -508,7 +508,7 @@ final class ManagementSummaryCell: NSTableCellView {
         root.requiredLabel.stringValue = ""; root.requiredLabel.textColor = Theme.secondary
         root.footer.stringValue = ""
         root.saveButton.isEnabled = true; updateSidebar(); root.needsLayout = true
-        root.cancelButton.title = review ? "返回对话" : "取消"; root.saveButton.title = review ? "保存 \(experience?.reviewItems.count ?? 0) 条" : "保存条目"
+        root.cancelButton.title = review ? "返回整理" : "取消"; root.saveButton.title = review ? "保存 \(experience?.reviewItems.count ?? 0) 条" : "保存条目"
     }
     private func scheduleDraft() {
         draftWork?.cancel(); root.statusLabel.stringValue = "尚未保存"
@@ -723,10 +723,16 @@ extension ManagementWindowController {
         cancelGeneration(); draftWork?.cancel(); reviewID = nil; root.editor = nil
         let controller = ExperienceController(session: session, library: library, service: experienceService)
         experience = controller
-        controller.confirmReplacement = { [weak self] in self?.confirmCandidateReplacement() ?? false }
+        controller.confirmReplacement = {
+            let alert = NSAlert(); alert.messageText = "替换当前 Prompt？"
+            alert.informativeText = "生成成功后替换现有内容；失败或取消会保留。"
+            alert.addButton(withTitle: "重新生成"); alert.addButton(withTitle: "保留现有内容")
+            return alert.runModal() == .alertFirstButtonReturn
+        }
         controller.onChange = { [weak self, weak controller] in
             guard let self, let controller, self.experience === controller else { return }
             self.root.experienceView?.update(); self.setSaving(controller.saving)
+            if self.root.page == .experience { self.root.title.stringValue = controller.session.items.isEmpty ? (controller.session.manualPrompt == nil ? "新增经验" : "手动填写") : "整理经验" }
             self.root.requiredLabel.stringValue = controller.status
         }
         controller.onReview = { [weak self] in self?.presentExperienceReview(index: 0) }
@@ -750,6 +756,7 @@ extension ManagementWindowController {
         if experience.session.items.first(where: { $0.id == id })?.candidate != value { experience.updateCandidate(id, value) }
     }
     func presentExperienceReview(index: Int) {
+        guard experience?.saving != true else { return }
         stashReview()
         guard let experience, experience.reviewItems.indices.contains(index) else { return }
         let items = experience.reviewItems, item = items[index]
@@ -757,6 +764,8 @@ extension ManagementWindowController {
             let draft = try item.entry(source: experience.session.source)
             reviewID = item.id; presentEditor(draft, review: true); root.title.stringValue = "审核条目"
             root.editor?.setReviewPosition(index: index, total: items.count, title: item.title)
+            root.editor?.setReviewItems(items, selected: index)
+            root.editor?.onReviewSelect = { [weak self] in self?.presentExperienceReview(index: $0) }
             root.editor?.previousButton.onPress = { [weak self] in self?.presentExperienceReview(index: index - 1) }
             root.editor?.nextButton.onPress = { [weak self] in self?.presentExperienceReview(index: index + 1) }
         } catch { experience.show(error) }
