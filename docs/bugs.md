@@ -46,3 +46,41 @@
 用户明确普通主输入框才是 Stage 1 目标，这个问题延期，不继续阻挡阶段交付。`InsertionObservationTests` 确保差异诊断不能绕过严格全文校验：忽略空行后相等并不算成功，前缀缺失或空白被裁剪同样不通过。
 
 后续修复在这里记录最短复现、根因、修复边界、测试函数及未覆盖范围；实际源码历史以 Git commit 为准。
+
+| PI-017 | v0.3 新增整理/凭证控件放入元信息滚动内容后，最小编辑窗口初始看不到操作；采用新分类后未等待布局就滚动，名称输入框也会部分裁切 | 整理和钥匙固定在信息面板底部，字段单独滚动；采用新分类先布局再让整个名称输入框可见 | `GenerationTests.testMinimumEditorKeepsGenerationAndKeychainActionsVisible`：旧布局实跑 4 处断言失败，修复后通过；原生 `categories/new-name-entire-control-visible` 与候选/新分类截图。真实 API 不在此视觉测试范围 |
+
+| PI-018 | 保存任意条目时无条件清除唯一 editor 草稿槽，会误删另一条未完成草稿；批量实验复用了正式 repository，暴露了该所有权缺失 | 仅当草稿 entry.id 与本次保存 ID 一致时，在保存事务内清除。其他草稿原样保留 | `ManagementTests.testSavingAnotherEntryPreservesUnrelatedEditorDraft` 修复前实测失败，修复后通过；20 条真实实验前后比对正式伴随库草稿与使用事件不变 |
+
+
+## 2026-11-01 · 阅读 V2 分类颜色回归
+
+| 编号 | 根因 | 修复范围 | 验证 |
+| --- | --- | --- | --- |
+| PI-019 | 动态分类已贯通保存与查询，但 Theme / Dot 仍按五个初始 ID 查色，新增 ID 落到中性色 | 按 SQLite 完整分类顺序循环五色；侧栏、详情、编辑选择、浮窗与统计统一传入实际列表，复用现有柔光资源 | `NavigationTests.testGrowingCategoriesCycleColorsAndScrollWithoutMovingNavigation` 检查第六类颜色／圆点、26 分类滚动及固定主导航；完整原生检查通过。根因由旧源码确认，未运行修复前用例；当前实拍显示正式第六黄、第七蓝 |
+
+
+## 2026-11-02 · 常用安装位置未更新
+
+| 编号 | 根因 | 处理 | 验证 |
+| --- | --- | --- | --- |
+| PI-020 | v0.3.1 仅打开独立审查包，实际常用 Build 路径仍为 v0.2.0；后续从旧入口重开就回到旧 UI | 正常退出、备份旧包与两库，校验后复制同一签名 v0.3.1 到常用位置，重新启动；交付检查补入 development.md | 更新前实际 PID 路径和 build=20261030T162750Z；更新后同路径 PID=46702、build=20261101T044439Z，签名／逐文件摘要一致；原生三页阅读与七分类可见，两库所有用户表比对不变。安装断言和记录在 artifacts/installation/20261102T130352/report.json；未改客户端源码，不以旧完整套件冒充本轮重跑 |
+
+
+## v0.4 开发回归 · 2026-11-03
+
+| 编号 | 根因 | 修复与证据 |
+| --- | --- | --- |
+| PI-021 | 恢复 pending 请求时改成 failed，但草稿版本未推进，后续同版本内容校验冲突 | 恢复状态改变同步推进版本；ExperienceTests.testInterruptedRequestCanReopenAndPersistWithoutRevisionConflict 修复前真实失败、修复后通过 |
+| PI-022 | Fetch 的 X 标题与正文重复、后附回复；将整个页面交给识别会混入评论 | 只对完整引号匹配且无续行的已知单行格式取主体，未知／多行完整保留；识别提示词限定主体作者。DeepSeekClientTests.testSocialFetchDoesNotAttributeRepliesToTheLinkedAuthor 修复前失败，真实 X 复验识别20条；语义仍需审核 |
+| PI-023 | 审核原文复用长文本编辑容器，隐藏切换时实际截图为空；来源只读字段还出现多行裁切 | 原文改用现有只读 TextDocument；来源限单行并保留全文 tooltip。修复前后原生截图存档，experience/original-visible 与原句保真检查通过，不以字符串存在替代目测 |
+| PI-024 | 首次点讨论无条件覆盖 input；消息达到500后追加会使草稿永远无法校验保存；X裁切还可能丢失多行作者续文 | 开场独立于未发送输入；变更前预留用户／回复名额；多行和未知格式原样保留。三个最小回归修复前3测试11断言失败，修复后通过；独立复核仅对此批修复判 resolved/ship |
+
+## 经验识别过度拆分 · 2026-11-03
+
+| 编号 | 根因 | 修复与验证 |
+| --- | --- | --- |
+| PI-025 | 只验证引用是原文子串，允许同一条切碎、漏条件、重排与重叠；只靠提示词保持作者编号不可靠 | 请求前锁定 sourceUnits，顶层连续编号一一对应，无编号只允许合并相邻整段。拒绝不合边界结果，输入、来源和草稿保留可重试。ExperienceTests.testExtraction* 修复前新增8断言失败；边界失败重开／重试案例通过。独立审查又发现单行从1开始及第100条漏认，追加用例先失败后修复，第二轮只对这两项评分resolved／ship。最终108 Swift／9 Python／147原生检查／29图全通过，见testing.md。无真实API、正式数据改写或安装；不追改旧条目。 |
+
+## PI-026 · V6 仅粘贴 Prompt 后立即退出可能漏存
+
+复核发现 finish 仅检查 items/input；手动模式先填 Prompt、原文为空且未到 350 ms 自动保存时，退出不会排空该内容。修复 guard 同时检查 manualPrompt 与来源，全部批次保存后清空 manualPrompt。最小回归 ExperienceTests.testPromptOnlyManualDraftFlushesOnImmediateClose，覆盖立即结束并从新 repository 重开。旧输入与消息仍保留。

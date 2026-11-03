@@ -5,7 +5,15 @@ struct PromptCategory: Equatable {
     let name: String
     let symbol: String
     var entryCount: Int = 0
-    static let all: [Self] = [
+    static func normalizedName(_ name: String) throws -> String {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines).precomposedStringWithCanonicalMapping
+        guard !name.isEmpty, name.count <= 80, !name.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { throw LibraryFailure.invalidCategoryName }
+        return name
+    }
+    static func nameKey(_ name: String) -> String {
+        name.folding(options: [.caseInsensitive, .widthInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+    }
+    static let initial: [Self] = [
         .init(id: "requirements", name: "需求对接", symbol: "text.bubble"),
         .init(id: "coding", name: "编码", symbol: "chevron.left.forwardslash.chevron.right"),
         .init(id: "debugging", name: "排查", symbol: "ladybug"),
@@ -24,9 +32,12 @@ struct PromptEntry: Codable, Equatable {
     let explanation: String
     let prompt: String
 
-    func validateCreation() throws {
+    func inCategory(_ id: String) -> Self {
+        .init(id: self.id, categoryID: id, title: title, summary: summary, originalExperience: originalExperience, source: source, explanation: explanation, prompt: prompt)
+    }
+    func validateCreation(categories: [PromptCategory]) throws {
         guard UUID(uuidString: id) != nil else { throw LibraryFailure.invalidID }
-        guard PromptCategory.all.contains(where: { $0.id == categoryID }) else { throw LibraryFailure.invalidCategory }
+        guard categories.contains(where: { $0.id == categoryID }) else { throw LibraryFailure.invalidCategory }
         guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw LibraryFailure.emptyTitle }
         guard !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw LibraryFailure.emptyPrompt }
     }
@@ -69,6 +80,8 @@ struct UsageRecord: Equatable {
 protocol ManagedPromptRepository: PromptRepository {
     func managedSummaries(category: String?, query: String) throws -> [ManagedSummary]
     func save(_ entry: PromptEntry, replacing original: PromptEntry?) throws
+    func saveDraft(_ draft: EditorDraft) throws -> PromptEntry
+    func storeDraft(_ draft: EditorDraft) throws
     func storeDraft(_ entry: PromptEntry, original: PromptEntry?) throws
     func editorDraft() throws -> EditorDraft?
     func discardDraft() throws
@@ -79,6 +92,8 @@ protocol ManagedPromptRepository: PromptRepository {
 struct EditorDraft: Codable, Equatable {
     let entry: PromptEntry
     let original: PromptEntry?
+    var newCategoryName: String? = nil
+    var candidate: GeneratedPrompt? = nil
 }
 
 extension Notification.Name {
@@ -123,6 +138,17 @@ final class PromptLibrary {
             completion(result)
         }
     }
+    func saveDraft(_ draft: EditorDraft, completion: @escaping (Result<PromptEntry, Error>) -> Void) {
+        managed({ try $0.saveDraft(draft) }) { [weak self] result in
+            if case .success(let entry) = result {
+                NotificationCenter.default.post(name: .promptLibraryChanged, object: self, userInfo: ["id": entry.id, "category": entry.categoryID, "previousCategory": draft.original?.categoryID ?? entry.categoryID])
+            }
+            completion(result)
+        }
+    }
+    func storeDraft(_ draft: EditorDraft, completion: @escaping (Result<Void, Error>) -> Void) {
+        managed({ try $0.storeDraft(draft) }, completion: completion)
+    }
     func storeDraft(_ entry: PromptEntry, original: PromptEntry?, completion: @escaping (Result<Void, Error>) -> Void) {
         managed({ try $0.storeDraft(entry, original: original) }, completion: completion)
     }
@@ -136,6 +162,28 @@ final class PromptLibrary {
         }
     }
     func flush(completion: @escaping () -> Void) { queue.async { DispatchQueue.main.async(execute: completion) } }
+    private func experience<T>(_ operation: @escaping (ExperienceRepository) throws -> T) async throws -> T {
+        try await withCheckedThrowingContinuation { continuation in
+            managed({ repository in
+                guard let repository = repository as? ExperienceRepository else { throw LibraryFailure.readOnly }
+                return try operation(repository)
+            }, completion: { continuation.resume(with: $0) })
+        }
+    }
+
+    func experienceDraft() async throws -> ExperienceSession? { try await experience { try $0.experienceDraft() } }
+    func storeExperienceDraft(_ session: ExperienceSession) async throws { try await experience { try $0.storeExperienceDraft(session) } }
+    func saveExperiences(_ session: ExperienceSession) async throws -> [PromptEntry] {
+        let saved = try await experience { try $0.saveExperiences(session) }
+        await MainActor.run {
+            for entry in saved { NotificationCenter.default.post(name: .promptLibraryChanged, object: self, userInfo: ["id": entry.id, "category": entry.categoryID, "previousCategory": entry.categoryID]) }
+        }
+        return saved
+    }
+    func deleteEntry(_ original: PromptEntry) async throws {
+        try await experience { try $0.deleteEntry(original) }
+        await MainActor.run { NotificationCenter.default.post(name: .promptLibraryChanged, object: self, userInfo: ["id": original.id, "category": original.categoryID, "previousCategory": original.categoryID]) }
+    }
     func usage(since: Date?, completion: @escaping (Result<[UsageRecord], Error>) -> Void) { managed({ try $0.usage(since: since) }, completion: completion) }
     func load(_ page: LauncherPage, completion: @escaping (Result<LibraryPageContent, Error>) -> Void) {
         queue.async { [repository] in
@@ -165,9 +213,11 @@ final class PromptLibrary {
 }
 
 enum LibraryFailure: Error, LocalizedError {
+    case invalidCategoryName
     case missingEntry, incompatibleVersion, invalidSeed, invalidFields, conflict, readOnly, invalidID, invalidCategory, emptyTitle, emptyPrompt
     var errorDescription: String? {
         switch self {
+        case .invalidCategoryName: return "请填写 1–80 字的分类名称，不含控制字符。"
         case .missingEntry: return "条目不存在，请返回列表。"
         case .incompatibleVersion: return "资料库版本较新，请更新应用。"
         case .invalidSeed: return "无法初始化资料库，请检查安装文件。"
@@ -186,13 +236,13 @@ enum LibraryFailure: Error, LocalizedError {
 final class MemoryPromptRepository: PromptRepository {
     private(set) var entries: [PromptEntry]
     init(entries: [PromptEntry]) { self.entries = entries }
-    func categories() throws -> [PromptCategory] { PromptCategory.all }
+    func categories() throws -> [PromptCategory] { PromptCategory.initial }
     func summaries(in category: String) throws -> [PromptSummary] {
         entries.filter { $0.categoryID == category }.map { .init(id: $0.id, categoryID: $0.categoryID, title: $0.title, summary: $0.summary) }
     }
     func entry(id: String, category: String) throws -> PromptEntry? { entries.first { $0.id == id && $0.categoryID == category } }
     func create(_ entry: PromptEntry, operationID: UUID) throws {
-        try entry.validateCreation()
+        try entry.validateCreation(categories: categories())
         guard !entries.contains(where: { $0.id == entry.id }) else { throw SQLiteFailure(code: 19) }
         entries.append(entry)
     }

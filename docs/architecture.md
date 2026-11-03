@@ -84,10 +84,28 @@ Stage 1 已用 SQLite repository 取代示例加载器：分类查询不读条�
 
 Stage 2 当前开发版已接入独立管理窗口、事务新增／编辑、管理页搜索、草稿与使用统计。完整验收状态见 [figma-integration.md](figma-integration.md)。JSON 导入导出、删除和浮窗搜索尚未实现；不把测试中的 JSON 字段往返当成产品导入导出功能。
 
-Stage 3 增加本地 Draft 和 Go + chi 整理接口。原文先持久化，手工编辑稿和生成候选分开保存，由用户选择采用候选。
+Stage 3 改为客户端直连 DeepSeek：`PromptGenerating` / `DeepSeekClient` 用 URLSession 异步请求，Keychain 保存凭证，不设中转。点击整理先经 PromptLibrary 串行队列保存 EditorDraft，再读取当前分类并发请求。JSON 模式加本地字段、长度、分类互斥与 ID 校验；来源和原文不在返回结构中，不能被模型回写。网络响应、凭证、正文和来源都不记日志。
+
+EditorDraft 在原 JSON payload 增加可选 newCategoryName 与 candidate，旧草稿仍能解码。请求绑定 operationID、编辑器实例和快照；编辑、切页、取消、保存、关闭、退出使请求失效。只匹配当前请求的响应可存候选，采用候选是显式操作，原文和来源保持原样。原有手工编辑和候选一起存伴随库，退出继续排空队列。
+
+分类直接读 categories 表；PromptCategory.initial 只负责种子和隔离内存夹具。新增分类在条目保存事务内去重并分配 UUID，沿用 v1 表结构；同事务失败不会遗留分类。管理侧栏可滚动；编辑菜单、浮窗、历史使用校验、图表系列、图例和分布都使用数据库分类。分类显示按数据库顺序循环现有五色，侧栏、详情、编辑、浮窗及统计共享完整分类列表，复用五种柔光圆点；新增分类保持 folder 符号，无新资源或颜色字段。
 
 Stage 4 才增加 PostgreSQL、版本、删除标记与同步游标。成功刷新后原子切换缓存，冲突和失败明确反馈。计划目录不等于已创建服务。
 
 ## 验证
 
 构建与单元测试命令见 [README](../README.md)。单元测试覆盖导航记忆、示例 ID/字段完整性、围栏代码字体、UTF-16 范围和剪贴板所有权/恢复；SQLite 临时库测试覆盖重启、事务、分层和故障；自动化不能替代真实跨应用插入或性能验收。完整入口见 [testing.md](testing.md)。运行检查、用户实测与限制统一见 [prototype.md](prototype.md)。
+
+## v0.4 经验会话与批量整理
+
+`ExperienceSession` 保存整篇原文、来源、版本号、当前条目及每条稳定 ID、原句、独立消息／未发送输入、勾选和候选。`ExperienceController` 在 MainActor 调度 UI，网络／编码／解析由非隔离的 DeepSeekClient 异步执行，SQLite 继续通过 PromptLibrary 串行队列。识别、讨论与整理各有系统提示词；讨论和整理携带完整原文背景保留全局条件，聊天历史仅来自当前条。LLM 无本机操作工具，Fetch 是客户端控制的 DeepSeek 读取接口。
+
+新会话草稿与按版本存档在伴随库的 experience_drafts / experience_archives；旧 editor_drafts 和 usage_events 保留，正式内容 schema 仍为 v1。批量保存复用 writeDraft，在同一个事务内去重新分类、写入选定 Prompt、存档原文／讨论并保留未选草稿；只有 commit 后通知。存档版本阻止迟到自动保存复活已保存批次。删除比较完整旧快照，提交后刷新管理与浮窗，历史事件与分类保留。
+
+当前分类色扩为十五种，由 Theme.categoryColor 和 DesignAssets.categoryDot 统一按完整数据库顺序映射；前五色不变，第16回第1。原生新增 ExperienceView 双栏，审核复用 PromptEditorView 的 reviewMode，原文使用既有只读 TextDocument。已有手工草稿继续使用原编辑器，不静默迁移丢失手改。具体流程、提示词、验证入口和恢复方法见 [experience-dialogue.md](experience-dialogue.md)。
+
+## v0.5 一键整理与独立 Prompt
+
+V6 替代上述 v0.4 聊天入口。ExperienceController 的选择、粘贴和审核均不调用模型；send 仅识别初始原文／链接，单条继续组织并审核，多条由 generateCurrent 明确生成。请求前落盘，使用最新分类；operationID、候选快照与取消状态防止迟到覆盖。旧消息／未发送输入仅保留为历史数据，新生成不传 discussion。
+
+ExperienceSession 的可选 manualPrompt 保存未进入审核的手贴内容，兼容旧 JSON；进入审核后使用每条 candidate.prompt，退出排空包括原文为空的手贴草稿。生成 JSON 仍严格校验六字段与分类；保存时仅允许简述／解释为空，其他字段、长度、分类与事务校验继续执行。审核在 PromptEditorView 内左列表／右编辑，切换先 stashReview。

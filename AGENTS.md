@@ -13,8 +13,8 @@
 ## 技术与范围
 
 - 客户端用 Swift + AppKit，局部按需要结合 SwiftUI；正式本地数据使用 SQLite。打包 JSON 仅作为首次事务导入的种子，正常读取必须走 SQLite repository。保持原生 macOS 窗口、焦点、菜单和键盘行为。
-- Stage 1–2 不引入云端依赖。Stage 3 才加入 Go + chi 的 LLM 整理服务；Stage 4 才加入 PostgreSQL 和同步。不提前实现账号、注册、多用户或 Windows 支持。
-- 分类、条目列表、详情是同一浮窗的三个层级。长内容编辑放在独立管理窗口。
+- Stage 1–2 的本地调用路径不引入云端依赖。Stage 3 由 Swift 客户端直连 DeepSeek，API key 仅存本机 Keychain，不自建 Go + chi 中转；Stage 4 的 PostgreSQL 和同步仍属后续计划。不提前实现账号、注册、多用户或 Windows 支持。
+- 分类以 SQLite 实际数据为准；现有五类及 ID 仅作初始种子，新增分类与条目同事务保存并做同名去重。分类、条目列表、详情是同一浮窗的三个层级。长内容编辑放在独立管理窗口。
 - 浏览、搜索、复制和插入已有内容均使用本地数据；这些路径不调用 LLM，也不等待网络。
 
 ## 不可破坏的行为

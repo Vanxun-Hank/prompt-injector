@@ -6,6 +6,75 @@ struct SQLiteFailure: Error, LocalizedError {
     var errorDescription: String? { "无法读取或写入本地资料库，请重试。" }
 }
 
+extension SQLitePromptRepository: ExperienceRepository {
+    func experienceDraft() throws -> ExperienceSession? {
+        try attachActivity()
+        return try rows("SELECT payload FROM activity.experience_drafts WHERE slot='experience'") {
+            let value = try JSONDecoder().decode(ExperienceSession.self, from: Data(self.text($0, 0).utf8))
+            try value.validate(); return value
+        }.first
+    }
+    func storeExperienceDraft(_ session: ExperienceSession) throws {
+        try session.validate(); try attachActivity()
+        try execute("BEGIN IMMEDIATE")
+        do {
+            if let existing = try experienceDraft(), existing.id != session.id || existing.revision > session.revision || (existing.revision == session.revision && existing != session) { throw LibraryFailure.conflict }
+            let saved = try rows("SELECT coalesce(max(revision),-1) FROM activity.experience_archives WHERE session_id=?", [session.id]) { Int(sqlite3_column_int64($0, 0)) }.first ?? -1
+            // A delayed autosave must not resurrect a batch that has already committed.
+            if saved >= session.revision { throw LibraryFailure.conflict }
+            let payload = String(decoding: try JSONEncoder().encode(session), as: UTF8.self)
+            try execute("INSERT INTO activity.experience_drafts VALUES('experience',?) ON CONFLICT(slot) DO UPDATE SET payload=excluded.payload", [payload])
+            try execute("COMMIT")
+            logger.write(.draftSaved, fields: .init(stage: "experience-draft"))
+        } catch {
+            try? execute("ROLLBACK")
+            logger.write(.storageFailed, level: .error, fields: .init(stage: "experience-draft", systemCode: errorCode(error)))
+            throw error
+        }
+    }
+    func saveExperiences(_ session: ExperienceSession) throws -> [PromptEntry] {
+        try session.validate(); try attachActivity()
+        guard !session.selected.isEmpty else { throw LibraryFailure.invalidFields }
+        try execute("BEGIN IMMEDIATE")
+        do {
+            guard try experienceDraft() == session else { throw LibraryFailure.conflict }
+            var entries: [PromptEntry] = []
+            for item in session.selected {
+                guard let candidate = item.candidate else { throw GenerationFailure.invalidOutput }
+                try candidate.validate(categories: categories(), requiringDescriptions: false)
+                entries.append(try writeDraft(item.entry(source: session.source)))
+            }
+            let payload = String(decoding: try JSONEncoder().encode(session), as: UTF8.self)
+            try execute("INSERT INTO activity.experience_archives VALUES(?,?,?)", [session.id, String(session.revision), payload])
+            if session.remaining.items.isEmpty { try execute("DELETE FROM activity.experience_drafts WHERE slot='experience'") }
+            else {
+                let rest = String(decoding: try JSONEncoder().encode(session.remaining), as: UTF8.self)
+                try execute("UPDATE activity.experience_drafts SET payload=? WHERE slot='experience'", [rest])
+            }
+            try execute("COMMIT")
+            logger.write(.storageSaved, fields: .init(stage: "experience-batch", rowCount: entries.count))
+            return entries
+        } catch {
+            try? execute("ROLLBACK")
+            logger.write(.storageFailed, level: .error, fields: .init(stage: "experience-batch", systemCode: errorCode(error)))
+            throw error
+        }
+    }
+    func deleteEntry(_ original: PromptEntry) throws {
+        try open(); try execute("BEGIN IMMEDIATE")
+        do {
+            guard try entry(id: original.id, category: original.categoryID) == original else { throw LibraryFailure.conflict }
+            try execute("DELETE FROM prompts WHERE id=?", [original.id])
+            try execute("COMMIT")
+            logger.write(.storageSaved, fields: .init(stage: "entry-deleted", rowCount: 1))
+        } catch {
+            try? execute("ROLLBACK")
+            logger.write(.storageFailed, level: .error, fields: .init(stage: "entry-delete", systemCode: errorCode(error)))
+            throw error
+        }
+    }
+}
+
 /// Confined to PromptLibrary's serial queue; tests may use it serially directly.
 final class SQLitePromptRepository: ManagedPromptRepository {
     static var defaultURL: URL {
@@ -62,13 +131,13 @@ final class SQLitePromptRepository: ManagedPromptRepository {
     private func migrate() throws {
         let entries = try seed()
         guard Set(entries.map(\.id)).count == entries.count,
-              entries.allSatisfy({ entry in !entry.id.isEmpty && !entry.title.isEmpty && !entry.prompt.isEmpty && PromptCategory.all.contains(where: { $0.id == entry.categoryID }) }) else {
+              entries.allSatisfy({ entry in !entry.id.isEmpty && !entry.title.isEmpty && !entry.prompt.isEmpty && PromptCategory.initial.contains(where: { $0.id == entry.categoryID }) }) else {
             throw LibraryFailure.invalidSeed
         }
         try execute("CREATE TABLE categories (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, symbol TEXT NOT NULL, sort_order INTEGER NOT NULL UNIQUE)")
         try execute("CREATE TABLE prompts (id TEXT PRIMARY KEY NOT NULL, category_id TEXT NOT NULL REFERENCES categories(id), title TEXT NOT NULL, summary TEXT NOT NULL, original_experience TEXT NOT NULL, source TEXT NOT NULL, explanation TEXT NOT NULL, prompt TEXT NOT NULL, sort_order INTEGER NOT NULL UNIQUE)")
         try execute("CREATE INDEX prompts_category_order ON prompts(category_id, sort_order)")
-        for (index, category) in PromptCategory.all.enumerated() {
+        for (index, category) in PromptCategory.initial.enumerated() {
             try execute("INSERT INTO categories VALUES (?, ?, ?, ?)", [category.id, category.name, category.symbol, String(index)])
         }
         for (index, entry) in entries.enumerated() {
@@ -106,34 +175,60 @@ final class SQLitePromptRepository: ManagedPromptRepository {
         }
     }
     func save(_ entry: PromptEntry, replacing original: PromptEntry?) throws {
+        _ = try saveDraft(EditorDraft(entry: entry, original: original))
+    }
+    func saveDraft(_ draft: EditorDraft) throws -> PromptEntry {
+        var entry = draft.entry
+        let original = draft.original
         let start = ProcessInfo.processInfo.systemUptime
         do {
             guard !entry.id.isEmpty, !entry.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  !entry.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  PromptCategory.all.contains(where: { $0.id == entry.categoryID }) else { throw LibraryFailure.invalidFields }
+                  !entry.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw LibraryFailure.invalidFields }
             try open()
             try attachActivity()
             try execute("BEGIN IMMEDIATE")
             do {
-                let current = try rows("SELECT category_id FROM prompts WHERE id=?", [entry.id]) { self.text($0, 0) }.first
-                let existing = try current.flatMap { try self.entry(id: entry.id, category: $0) }
-                if let original {
-                    guard original.id == entry.id, existing == original || existing == entry else { throw LibraryFailure.conflict }
-                } else if let existing, existing != entry { throw LibraryFailure.conflict }
-                let fields = [entry.categoryID, entry.title, entry.summary, entry.originalExperience, entry.source, entry.explanation, entry.prompt, entry.id]
-                if existing != nil {
-                    try execute("UPDATE prompts SET category_id=?,title=?,summary=?,original_experience=?,source=?,explanation=?,prompt=? WHERE id=?", fields)
-                } else {
-                    try execute("INSERT INTO prompts(category_id,title,summary,original_experience,source,explanation,prompt,id,sort_order) VALUES(?,?,?,?,?,?,?,?,(SELECT coalesce(max(sort_order),-1)+1 FROM prompts))", fields)
+                entry = try writeDraft(draft)
+                if try editorDraft()?.entry.id == entry.id {
+                    try execute("DELETE FROM activity.editor_drafts WHERE slot='editor'")
                 }
-                try execute("DELETE FROM activity.editor_drafts WHERE slot='editor'")
                 try execute("COMMIT")
                 logger.write(.storageSaved, fields: .init(stage: original == nil ? "create" : "edit", elapsedMilliseconds: elapsed(start), rowCount: 1))
+                return entry
             } catch { try? execute("ROLLBACK"); throw error }
         } catch {
             logger.write(.storageFailed, level: .error, fields: .init(stage: "save", systemCode: errorCode(error), elapsedMilliseconds: elapsed(start)))
             throw error
         }
+    }
+    // Shares the enclosing transaction with both single and batch saves.
+    private func writeDraft(_ draft: EditorDraft) throws -> PromptEntry {
+        var entry = draft.entry
+        let original = draft.original
+        guard !entry.id.isEmpty, !entry.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !entry.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw LibraryFailure.invalidFields }
+        if let name = draft.newCategoryName { entry = entry.inCategory(try resolveCategory(name).id) }
+        guard try categories().contains(where: { $0.id == entry.categoryID }) else { throw LibraryFailure.invalidCategory }
+        let current = try rows("SELECT category_id FROM prompts WHERE id=?", [entry.id]) { self.text($0, 0) }.first
+        let existing = try current.flatMap { try self.entry(id: entry.id, category: $0) }
+        if let original {
+            guard original.id == entry.id, existing == original || existing == entry else { throw LibraryFailure.conflict }
+        } else if let existing, existing != entry { throw LibraryFailure.conflict }
+        let fields = [entry.categoryID, entry.title, entry.summary, entry.originalExperience, entry.source, entry.explanation, entry.prompt, entry.id]
+        if existing != nil {
+            try execute("UPDATE prompts SET category_id=?,title=?,summary=?,original_experience=?,source=?,explanation=?,prompt=? WHERE id=?", fields)
+        } else {
+            try execute("INSERT INTO prompts(category_id,title,summary,original_experience,source,explanation,prompt,id,sort_order) VALUES(?,?,?,?,?,?,?,?,(SELECT coalesce(max(sort_order),-1)+1 FROM prompts))", fields)
+        }
+        return entry
+    }
+    // Called only inside the save transaction: deduplication and entry creation commit together.
+    private func resolveCategory(_ proposed: String) throws -> PromptCategory {
+        let name = try PromptCategory.normalizedName(proposed)
+        if let existing = try categories().first(where: { PromptCategory.nameKey($0.name) == PromptCategory.nameKey(name) }) { return existing }
+        let category = PromptCategory(id: UUID().uuidString, name: name, symbol: "folder")
+        try execute("INSERT INTO categories VALUES(?,?,?,(SELECT coalesce(max(sort_order),-1)+1 FROM categories))", [category.id, category.name, category.symbol])
+        logger.write(.categoryCreated, fields: .init(stage: "pending-transaction"))
+        return category
     }
     // Optional UI state and usage live in a companion SQLite file; the v1 content schema stays readable by v0.1.
     private func attachActivity() throws {
@@ -146,14 +241,19 @@ final class SQLitePromptRepository: ManagedPromptRepository {
             try execute("CREATE TABLE IF NOT EXISTS activity.editor_drafts(slot TEXT PRIMARY KEY NOT NULL, payload TEXT NOT NULL)")
             try execute("CREATE TABLE IF NOT EXISTS activity.usage_events(id TEXT PRIMARY KEY NOT NULL, prompt_id TEXT NOT NULL, category_id TEXT NOT NULL, title TEXT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('copy','insert')), created_at REAL NOT NULL)")
             try execute("CREATE INDEX IF NOT EXISTS activity.usage_date ON usage_events(created_at)")
+            try execute("CREATE TABLE IF NOT EXISTS activity.experience_drafts(slot TEXT PRIMARY KEY NOT NULL, payload TEXT NOT NULL)")
+            try execute("CREATE TABLE IF NOT EXISTS activity.experience_archives(session_id TEXT NOT NULL, revision INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(session_id, revision))")
             try execute("COMMIT")
             activityAttached = true
         } catch { try? execute("ROLLBACK"); try? execute("DETACH DATABASE activity"); throw error }
     }
     func storeDraft(_ entry: PromptEntry, original: PromptEntry?) throws {
+        try storeDraft(EditorDraft(entry: entry, original: original))
+    }
+    func storeDraft(_ draft: EditorDraft) throws {
         do {
             try attachActivity()
-            let payload = String(decoding: try JSONEncoder().encode(EditorDraft(entry: entry, original: original)), as: UTF8.self)
+            let payload = String(decoding: try JSONEncoder().encode(draft), as: UTF8.self)
             try execute("INSERT INTO activity.editor_drafts VALUES('editor',?) ON CONFLICT(slot) DO UPDATE SET payload=excluded.payload", [payload])
             logger.write(.draftSaved, fields: .init(stage: "local-draft"))
         } catch { logger.write(.storageFailed, level: .error, fields: .init(stage: "draft", systemCode: errorCode(error))); throw error }
@@ -175,11 +275,12 @@ final class SQLitePromptRepository: ManagedPromptRepository {
     func usage(since: Date?) throws -> [UsageRecord] {
         try query("usage") {
             try attachActivity()
+            let categoryIDs = Set(try categories().map(\.id))
             return try rows("SELECT prompt_id,category_id,title,kind,created_at FROM activity.usage_events WHERE created_at>=? ORDER BY created_at,id", [String(since?.timeIntervalSince1970 ?? 0)]) {
                 let date = sqlite3_column_double($0, 4)
                 let category = self.text($0, 1)
                 guard let kind = UsageKind(rawValue: self.text($0, 3)), date.isFinite,
-                      PromptCategory.all.contains(where: { $0.id == category }) else { throw SQLiteFailure(code: SQLITE_CORRUPT) }
+                      categoryIDs.contains(category) else { throw SQLiteFailure(code: SQLITE_CORRUPT) }
                 return UsageRecord(promptID: self.text($0, 0), categoryID: category, title: self.text($0, 2), kind: kind, date: Date(timeIntervalSince1970: date))
             }
         }
@@ -188,7 +289,7 @@ final class SQLitePromptRepository: ManagedPromptRepository {
         let start = ProcessInfo.processInfo.systemUptime
         logger.write(.storageSaveStarted, operationID: operationID, fields: .init(stage: "create"))
         do {
-            try entry.validateCreation()
+            try entry.validateCreation(categories: categories())
             try open()
             try execute("BEGIN IMMEDIATE")
             do {

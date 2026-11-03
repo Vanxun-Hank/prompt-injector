@@ -58,6 +58,45 @@ final class NavigationTests: XCTestCase {
         }
     }
 
+    @MainActor func testManagementReadingLayersKeepVerbatimFieldsAndControlsVisible() {
+        let entry = PromptEntry(id: "reading", categoryID: "coding", title: String(repeating: "长标题", count: 30), summary: String(repeating: "使用条件", count: 60), originalExperience: "作者原句\n保留空格 😀", source: "作者 https://example.com/original", explanation: "仅在原条件内适用。", prompt: "完整 Prompt\n\n不改换行😀")
+        for size in [NSSize(width: 1160, height: 816), NSSize(width: 820, height: 576)] {
+            let view = ManagementLibraryView(frame: NSRect(origin: .zero, size: size)); view.categories = PromptCategory.initial
+            view.setEntry(entry); view.layoutSubtreeIfNeeded()
+            XCTAssertEqual(view.document.text.string, entry.prompt)
+            XCTAssertLessThanOrEqual(view.heading.frame.height, 64)
+            XCTAssertGreaterThanOrEqual(view.segments.frame.minY, view.summary.frame.maxY + 24)
+            XCTAssertLessThanOrEqual(view.scroll.frame.maxY + 24, view.copyButton.frame.minY)
+            XCTAssertLessThanOrEqual(view.document.frame.width, 640)
+            view.segments.buttons[1].performClick(nil)
+            XCTAssertEqual(view.document.text.string, entry.source + "\n\n" + entry.originalExperience)
+            let source = view.document.text.attributedString()
+            XCTAssertNotNil(source.attribute(.link, at: (source.string as NSString).range(of: "https").location, effectiveRange: nil))
+            view.segments.buttons[2].performClick(nil)
+            XCTAssertEqual(view.document.text.string, entry.explanation)
+            view.setEntry(entry)
+            XCTAssertEqual(view.segments.selectedIndex, 2)
+            view.setEntry(nil)
+            XCTAssertEqual(view.segments.selectedIndex, 0)
+            XCTAssertFalse(view.copyButton.isEnabled)
+        }
+    }
+
+    @MainActor func testGrowingCategoriesCycleColorsAndScrollWithoutMovingNavigation() throws {
+        let categories = PromptCategory.initial + (6...26).map { PromptCategory(id: "category-\($0)", name: "新增分类 \($0)", symbol: "folder") }
+        for i in categories.indices { XCTAssertEqual(Theme.categoryColor(categories[i].id, in: categories), Theme.categoryColor(categories[i % 15].id, in: categories)) }
+        XCTAssertEqual(DesignAssets.categoryDot(categories[15].id, in: categories).tiffRepresentation, DesignAssets.categoryDot(categories[0].id, in: categories).tiffRepresentation)
+        let root = ManagementRoot(frame: NSRect(x: 0, y: 0, width: 1100, height: 720))
+        root.setCategories(categories); root.layoutSubtreeIfNeeded()
+        let navigation = root.all.frame
+        let last = try XCTUnwrap(root.categoryItems.last), scroll = try XCTUnwrap(last.enclosingScrollView)
+        last.scrollToVisible(last.bounds)
+        XCTAssertGreaterThan(scroll.contentView.bounds.minY, 0)
+        XCTAssertEqual(root.all.frame, navigation)
+        XCTAssertTrue(scroll.documentVisibleRect.contains(last.frame))
+        XCTAssertLessThan(root.stats.frame.maxY, scroll.frame.minY)
+    }
+
     func testBackRestoresIndependentSelectionAndScroll() {
         var state = NavigationState()
         state.remember(selection: 2, scrollY: 40)
@@ -77,7 +116,7 @@ final class NavigationTests: XCTestCase {
     func testSeedContentHasDistinctIDsAndRequiredFields() throws {
         let entries = try PromptSeed.entries()
         XCTAssertEqual(Set(entries.map(\.id)).count, entries.count)
-        for category in PromptCategory.all { XCTAssertFalse(entries.filter { $0.categoryID == category.id }.isEmpty) }
+        for category in PromptCategory.initial { XCTAssertFalse(entries.filter { $0.categoryID == category.id }.isEmpty) }
         for entry in entries {
             XCTAssertFalse(entry.summary.isEmpty)
             XCTAssertFalse(entry.originalExperience.isEmpty)

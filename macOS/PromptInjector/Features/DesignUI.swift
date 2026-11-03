@@ -1,6 +1,17 @@
 import AppKit
 
 enum DesignAssets {
+    static func categoryDot(_ id: String, in categories: [PromptCategory]) -> NSImage {
+        let index = categories.firstIndex { $0.id == id }
+        if let index, index % 15 < 5, let image = image("Dot-" + PromptCategory.initial[index % 15].id, template: false) { return image }
+        return NSImage(size: NSSize(width: 27, height: 27), flipped: false) { _ in
+            let color = Theme.categoryColor(id, in: categories)
+            let shadow = NSShadow(); shadow.shadowColor = color.withAlphaComponent(0.6); shadow.shadowBlurRadius = 7; shadow.shadowOffset = .zero; shadow.set()
+            color.setFill()
+            NSBezierPath(ovalIn: NSRect(x: 10, y: 10, width: 7, height: 7)).fill()
+            return true
+        }
+    }
     private static var cache: [String: NSImage] = [:]
     static func image(_ name: String, template: Bool = true) -> NSImage? {
         if cache[name] == nil {
@@ -60,9 +71,9 @@ final class LogoView: FlippedView {
 final class CategoryDot: FlippedView {
     private let image = NSImageView()
     override var wantsDefaultClipping: Bool { false }
-    init(category: String) {
+    init(category: String, categories: [PromptCategory]) {
         super.init(frame: NSRect(x: 0, y: 0, width: 7, height: 7))
-        image.image = DesignAssets.image("Dot-" + category, template: false)
+        image.image = DesignAssets.categoryDot(category, in: categories)
         image.imageScaling = .scaleNone
         addSubview(image)
     }
@@ -128,10 +139,12 @@ extension Theme {
     static func hex(_ value: UInt32) -> NSColor { NSColor(srgbRed: CGFloat((value >> 16) & 255) / 255, green: CGFloat((value >> 8) & 255) / 255, blue: CGFloat(value & 255) / 255, alpha: 1) }
     static let canvas = hex(0x0B0B0B), shell = hex(0x101010), panel = hex(0x151515)
     static let band = hex(0x1D1D1D), selection = hex(0x292929), border = hex(0x2B2B2B)
-    static func categoryColor(_ id: String) -> NSColor {
-        hex(["requirements": 0xF5D975, "coding": 0x99A8FF, "debugging": 0xFFAA85, "review": 0xC5A0FF, "release": 0xF699C8][id] ?? 0xF4F4F2)
+    static func categoryColor(_ id: String, in categories: [PromptCategory]) -> NSColor {
+        let palette: [UInt32] = [0xF5D975, 0x99A8FF, 0xFFAA85, 0xC5A0FF, 0xF699C8, 0x74D5A8, 0x71CDD9, 0xBEDA7B, 0xD8B279, 0x79B7EE, 0xD999AF, 0x9EBBA6, 0xB9A58F, 0xCED1A3, 0xAAAFCB]
+        guard let index = categories.firstIndex(where: { $0.id == id }) else { return Theme.text }
+        return hex(palette[index % palette.count])
     }
-    static func categoryName(_ id: String) -> String { PromptCategory.all.first { $0.id == id }?.name ?? id }
+    static func categoryName(_ id: String, in categories: [PromptCategory]) -> String { categories.first { $0.id == id }?.name ?? id }
     static func glow(_ label: NSTextField, color: NSColor) {
         label.textColor = color; label.wantsLayer = true
         let shadow = NSShadow(); shadow.shadowColor = color.withAlphaComponent(0.55); shadow.shadowBlurRadius = 3; shadow.shadowOffset = .zero

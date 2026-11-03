@@ -1,5 +1,54 @@
 # 客户端回归测试套件
 
+## 2026-11-04 · V6 / v0.5.0 · 最新
+
+通过 `python3 scripts/verify-experience.py` 自运行入口实际运行 `python3 scripts/test-suite.py`：**111 Swift、9 Python、157 原生检查、33 张 PNG** 全部通过。最终报告 `artifacts/tests/20261103T163827.630468Z/summary.json`，包装报告 `artifacts/experience-verification/20261103T163827.570925Z/report.json`。测试包 `build/Management-V6-Review/Prompt Injector.app`，build `20261103T163837Z`，源码指纹 `d94a2d15362f0e4767628abbd9e57aeeebdde63d5ffab28f67ac5a084cf84ca4`，版本 0.5.0。
+
+新增真实控制器／SQLite 回归：选择和粘贴不发网络、每条 Prompt 切换及重开保留；单条一键识别／生成后审核；最新分类、重新生成确认拒绝、超时重试、手改取消及迟到响应；零勾选／空 Prompt 阻止审核；旧 JSON 草稿与五百条历史消息保留；手动粘贴的简述／解释可空，API 解码仍严格完整。退出前仅有 Prompt 的草稿立即排空并从新 repository 读取，覆盖 PI-026。
+
+原生夹具通过默认／最小原文与 Prompt、并排手动录入、审核列表切换保留修改、右侧字段／新分类可见、原文和来源只读、批量事务保存、第六类、保存后浮窗立即加载、注入取消／确认删除。删除确认分支使用测试注入，不代表真实 NSAlert 实点。既有键盘插入路由和本地使用统计测试保留；这些不能替代真实跨应用填写。
+
+独立复核首次返回 fix，Prompt-only 退出、审核布局与来源 placeholder 三项已修复；第二轮仅对三项评分 resolved / ship，不声称全系统重审。默认套件为模拟 HTTP／fixture、临时数据；本轮未请求真实 DeepSeek、未做物理断网、真实 Codex 插入、系统 Reduce Motion／VoiceOver 或最低 macOS 验收。`--live-api` 保留为显式真实请求入口，已移除聊天步骤。
+
+同一通过包已备份后安装到常用路径并实际打开，PID 30927 路径与 build 相符。签名验证及逐文件摘要一致。安装前主库实际为 0 条内容／7 分类，伴随库为 5 使用记录／0 旧编辑草稿／1 经验草稿；打开后内容、分类和使用历史摘要不变。CUA 报告用户同时操作窗口，经验草稿 revision/currentID/items 后续发生变化，因此不声称草稿字节不变；草稿数仍 1，原有三条候选在新版恢复，未回填较早的 28 条备份。证据 `artifacts/installation/v050/report.json`、`installed-app.png`。
+
+本轮旧 App／两库备份：`~/Library/Application Support/Prompt Injector/Backups/before-v050-20261103T163945Z/`。恢复 App 只回退代码；恢复内容需先退出所有实例、另存当前状态，再成对恢复两库。Keychain 未改；旧版不能显示 V6 的 Prompt-only 未完成草稿，回退前先在新版完成或保留双库备份。
+
+## 2026-11-03 · 拆分边界补丁（未安装）
+
+完整 `python3 scripts/test-suite.py` 通过 **108 Swift、9 Python、147 原生检查、29 张截图**。报告 `artifacts/tests/20261103T124106.411928Z/summary.json`；审查包 `build/Boundary-Review/Prompt Injector.app`，构建 `20261103T124113Z`，指纹 `2e50be07d384ffd15670d58620174a2b66917270173ad605344f001c2d6d8402`。
+
+先失败后修复的回归覆盖一段不拆句、完整条件、二十个顶层编号、重复18续写、缩进子步骤、段落合并／漏段／重叠／重排、直接以1开头的单行列表（含尾换行和换行前言）、第100条，以及识别失败后草稿／来源重开与重试。独立代码复核初次要求修正后两项，第二次只对两项修复评分resolved／ship。源码中的 identify 请求携带实际 sourceUnits／numbered，HTTP夹具断言这些字段，不只检查提示词字符串。
+
+本轮没有真实API、跨应用插入、物理断网或安装验证，正式库与Keychain未改。V6为另行制作的Figma原型，九张指定截图视觉复核为可交用户审阅；网页版点通预设选择／审核／分类／保存／删除，与本次原生旧UI回归分开。详情见 [content-management-v6.md](content-management-v6.md)。
+
+## 2026-11-03 · 经验讨论 V5 / v0.4.0
+
+最终完整 `python3 scripts/test-suite.py`（由新脚本 `verify-experience.py` 调用）通过 **102 Swift、9 Python、147 原生检查、29 张截图**。报告 `artifacts/tests/20261102T162434.250338Z/summary.json`，构建 `20261102T162441Z`，源码指纹 `d304150aced6f34ef18b938bcafcd57b7e74a97931ecc6cbb9554ab1f36d0da9`。新增实际加号／发送／文字讨论／方框独立点击、每轮分隔、最小双栏、原文只读、候选手改、批量保存和浮窗加载、取消／确认删除等检查。模拟服务全部只在隔离库和显式验证路径使用，不作为真实模型结果。
+
+同一构建真实验证 `artifacts/experience-verification/20261102T162434.202069Z/report.json`：实际 Fetch 用户给的 X 链接，识别20条，选前2条完成多轮讨论、结构化整理、候选编辑、临时 SQLite 保存与重开；其余18条保留在隔离草稿。`realAPI`、`fetchVerified`、`realMultiRound` 均为 true，`formalLibraryChanged` 与 `realCodexInsertion` 为 false。只验证这一个公开链接与两条候选，不承诺任意网页或模型语义普遍正确。
+
+开发回归保留：中断恢复版本冲突、首聊覆盖未发送输入、500条消息越界后无法保存、X回复混入及多行正文截断、审核原文空白与来源裁切。首聊／上限／多行三项在修复前3测试11断言失败，修复后通过，独立审查随后仅对这批修复判 resolved/ship；四张原生布局截图可交付。每条讨论与整理还传入完整原文背景，HTTP 断言验证全局条件可见。
+
+已把同一验证包更新到常用 Build 启动位置并实际打开新增经验双栏；运行 PID／版本／签名／逐文件摘要一致，记录 `artifacts/installation/v040/report.json`。更新前正常退出并备份旧包与两库；启动后逐字段核对旧用户表不变：28条、7分类、5使用事件、0旧编辑草稿。新增两张会话表仅是伴随库扩展，正式 schema 仍为v1。
+
+本轮未复测真实 Codex 跨应用插入、物理断网、真实系统权限拒绝与目标失效；既有逻辑回归通过不替代这些人工验收。用户可运行 `python3 scripts/verify-experience.py`；真实调用需显式加 `--live-api`，具体命令、限制和代码／数据恢复见 [experience-dialogue.md](experience-dialogue.md)。
+
+## 2026-11-01 · 阅读 V2 / v0.3.1
+
+最终完整套件 `artifacts/tests/20261101T044433.502881Z/summary.json`：87 Swift、8 Python、129 原生检查、25 张 PNG 全通过。隔离审查包为 `build/Reading-V2-Review/Prompt Injector.app`，build ID `20261101T044439Z`，源码指纹 `07bdfd40b46de6b8de4d2423208c3d8e6b25f9777ce0857ade4f1b2228d464bd`。完整运行使用 PROMPT_INJECTOR_APP_OUTPUT 指向此独立目录，未覆盖原 Final-Review 包。
+
+新增检查：三页正文逐字一致、来源链接、说明分页仍复制完整 Prompt、长标题与最小窗口动作不重叠、五色循环和同资源圆点、26 分类独立滚动、一次失败后新增分类再重试能读到最新 ID，以及模型建议同名新类归回稳定 ID。原生新增原文／说明／分类滚动三张图，套件校验器同步要求这些证据。已有编辑、草稿、迟到响应、历史使用与插入路由检查保留。26 分类是 UI 隔离夹具，正式库未添加这些分类。
+
+真实 API：`artifacts/llm-real/reading-v2-category-reuse/report.json`，公开的第 3 条经验、现有 7 分类快照，返回已有「模型选择」ID `583102BD-93BA-4BE9-B375-2097705635E4`，未建议新分类；候选编辑、原文／来源保真、隔离 SQLite 保存与重开均通过。该报告 build `20261101T044251Z`，与最终包的客户端代码相同，之后仅统一版本号至 0.3.1；不会写成最终构建再次请求。标题「优先选用业界最佳模型」（10 字，不含验收编辑后缀）、简述「在任务需要模型且模型可选时使用。」；语义仍需人工审核，一条样本不保证所有近义分类都能正确合并。
+
+真实桌面：正常退出旧包后，打开 v0.3.1 内容管理；正式库仍为 28 条／7 类，并与请求前隔离快照逐字段比对条目和分类不变（artifacts/reading-v2/formal-data-check.json），第六黄、第七蓝，实际点击作者原文页显示用户提供的第 8 条原句及原来源。当前画面 `artifacts/reading-v2/app-live.png`；独立 finish review 对本轮 diff、默认／最小窗口及三态图判定 ship。旧条目标题／简述不批量改写。
+
+本轮未重新验证真实 Codex 跨应用插入、物理断网及真实权限拒绝／目标失效；模拟路由不替代这些验收。没有 UI 导入导出功能，未声称产品导出往返通过。
+
+回滚：本轮未改 schema、未写正式内容。恢复 v0.3.0 审查包即可回退 UI／生成指导（须先正常退出当前包）；代码可撤销本轮对应提交或在独立 worktree 使用 `3ba1bf2`，不覆盖已有未提交编辑。数据无需因本次 UI 回滚而恢复；若另行恢复用户资料，退出所有实例，先备份当前状态，再成对恢复 library.sqlite3 与 library-activity.sqlite3。Keychain 独立保留，代码或数据库回滚均不改变 key。
+
+
 每次代码或行为修改、每个 Stage 交付前，运行同一个入口：
 
 ```sh
@@ -25,7 +74,7 @@ python3 scripts/test-suite.py
 | 原生窗口 | `UIVerification.swift`：三级页面的三种尺寸、复制、键盘/IME 保护、滚动、长内容、固定操作栏、⌘Return 传递当前完整 Prompt/普通 Return 不插入、几何恢复、窗口及页面动画、中断、减少动态效果 |
 | 套件自身 | `test_suite_report.py`：顶层 passed 不能掩盖动画失败，缺失截图/空报告不能算通过 |
 | 管理与持久化 | `ManagementTests`：创建／重试／重开、编辑分类与过期覆盖、失败事务保留草稿、字面量搜索、事件计次、主库 schema v1 兼容、提交后通知和退出排空 |
-| 管理原生窗口 | `ManagementVerification.swift`：新增／编辑、保存失败输入保留、取消恢复草稿、搜索、复制、真实计次及最小尺寸；新增 6 张管理截图，整套要求 19 张截图和至少 85 项检查 |
+| 管理原生窗口 | `ManagementVerification.swift`：新增／编辑、保存失败输入保留、取消恢复草稿、搜索、复制、真实计次及最小尺寸；新增 6 张管理截图，整套要求 22 张截图和至少 85 项检查（新增候选、新分类编辑与第六类统计） |
 
 管理原生验证还检查三枚系统窗口按钮，并实际执行最小化／还原、放大和关闭；统计用真实列矩形验证最右列可见。插入错误状态同时检查按钮禁用与 ⌘Return 不路由，测试重置有效捕获后再恢复路由；这不替代真实外部输入框验收。
 
@@ -58,3 +107,19 @@ python3 scripts/test-suite.py
 2026-10-31 对齐与透明图标：完整套件 52 Swift + 7 Python + 108 原生检查、19 张有效截图通过，构建 20261030T162750Z。新增可见字形中线、翻转绘制方向、紧凑行模式与图标外围透明回归；原生同时检查源图、运行时应用图标和 ICNS。报告 artifacts/tests/20261030T162746.795484Z/summary.json。已正常重启并打开管理页，实际 Dock 画面因工具目标超时未目测，真实跨应用插入未重测。
 
 2026-10-31 main 合并包：73 Swift + 7 Python + 111 原生检查、19 张截图通过。报告 artifacts/tests/20261031T011328.865456Z/summary.json，独立审查构建 20261031T011333Z，指纹 20baaf6093e9d54128c44a1dfa7e9f3e7c2ce543c1fa3a8185f7c0b9a38941e4。保留两边回归，将旧表单三组测试迁移到当前编辑器，补分类迁移时旧列表刷新／详情跟随；原生经真实管理入口检查独立窗口、必填和正文 Return 编辑不保存。旧阶段的真实短 Prompt 插入记录保留，本次不冒称已复验合并包外部输入框。
+
+## v0.3 新增回归
+
+`GenerationTests`：结构/字段/未知 ID/分类互斥校验，候选明确采用与来源保真，第六分类去重、旧 ID/历史计次/重启，分类与条目事务失败保留草稿。`GenerationFlowTests`：请求前落盘、超时/取消/重试/迟到结果/请求中手改、候选恢复及保存刷新。`DeepSeekClientTests`：URLProtocol 模拟请求/HTTP/超时/截断，原样发送输入与当前分类、无工具、JSON 模式与 high 思考。
+
+原生新增候选审核/来源保真、第六类侧栏/预览/浮窗正文/统计；三张新截图 `management-candidate`、`management-new-category`、`management-sixth-statistics`。HTTP 与候选均模拟，不代表实际供应商或真实系统插入验收。
+
+2026-11-01 v0.3 最终功能回归：完整 `python3 scripts/test-suite.py` 通过 **83 Swift、8 Python、122 原生检查、22 张截图**。独立审查包构建 `20261101T032743Z`，源码指纹 `74453fa9618984d49978d968ea1c5cb1f05c1567d978fd4a3a396fb1a365683c`，本机报告 `artifacts/tests/20261101T032734.760510Z/summary.json`。候选字段直接编辑、重新生成的确认/取消、失败保留手改候选及临时凭证文件拒绝坏输入也在回归内。过程中曾出现异步 UI 断言过早和新分类输入框裁切；保留失败报告，修正后整套重跑通过。
+
+同日真实 DeepSeek 验收：用户提供 key 后，签名审查包通过 `--import-deepseek-key-file` 导入 Keychain、回读确认并清空本机临时文件（不在仓库）。另一进程以 `--verify-generation` 从 Keychain 读 key，实际请求 deepseek-flash/high，完成公开项目经验整理 → 候选内编辑 → 原文/来源保真 → 临时 SQLite 保存 → 重新打开字段一致。构建 `20261101T032653Z`，本机证据 `artifacts/llm-real/20261101-flash1017/report.json`、`generated-entry.json`。该构建与最终 UI 回归包的 DeepSeek 请求、Keychain 与候选采用逻辑相同；之后仅加候选替换确认测试接缝、验收工具空分类保护与错误码。真实 API 只有这 1 条样本，不宣称普遍语义质量；真实 Codex 跨应用与物理断网未在本轮重测，正式资料库未改动。
+
+2026-11-01 后续真实 20 条实验与最终回归：用户提供 Tw93 正文，逐条真实调用并经审核精简后保存正式库，8 → 28 条、5 → 7 类；原始输出与审核稿均留在本机 `artifacts/experiments/tw93-2115366100221501540/`。两库先通过 SQLite backup API 保留一致快照；保存后逐字段比对原文、来源和 ID，正式草稿与历史使用记录未变。正常启动审查包后，真实管理窗口显示 28 条/7 类，并选中第 9 条核对已保存 Prompt。
+
+实验发现“先说明”被模型扩写成等待批准、可选做法变强制、日志内容被虚构等语义偏差；已审核修剪保存稿并收紧系统提示词。第 9 条在隔离库再次真实生成，确认不再添加批准门槛；不据此保证所有生成结果语义正确。新增 PI-018 草稿归属回归：修复前失败，事务中仅清理本次条目草稿后通过。
+
+最终同入口完整通过 **84 Swift、8 Python、122 原生检查、22 张截图**，报告 `artifacts/tests/20261101T034010.793041Z/summary.json`；构建 `20261101T034018Z`，源码指纹 `01fbaf33aad6b164b7ba4f366b3d689c8ebc99219db61607c19f0ec3f433f1a4`。本轮真实 API 共 20 条用户经验及 2 条验收/提示词对照样本；真实 Codex 跨应用与物理断网仍未重测。

@@ -37,6 +37,8 @@ python3 scripts/read-logs.py --build 实际的buildID
 | `launcher.*` / `page.changed` / `copy.*` | 显示隐藏、层级切换、完整 Prompt 复制结果 |
 | `management.opened/save` / `storage.save_started/saved/failed` | 新增入口、必填早退、重复点击忽略、后台事务提交或失败；同次保存以 operationID 关联，不记录字段值 |
 | `library.refreshed/load_discarded` | 保存后的受影响页重载、按查询代次丢弃迟到结果 |
+| `generation.started/finished/cancelled/discarded/failed/adopted` | 草稿提交后整理、候选返回、取消/迟到失效/校验失败和显式采用；只记录 operationID、固定阶段与错误码 |
+| `credential.saved/failed` / `category.created` | Keychain 写入与失败、待事务提交的分类创建；不记 key 或分类名称 |
 | `capture.started/ready/failed` | 新目标捕获与文本/选区/编辑能力判断 |
 | `insertion.started/stage/write_requested` | 权限、目标、松开快捷键、恢复焦点、写入与验证阶段 |
 | `insertion.verified/failed/unconfirmed` | 回读匹配、明确失败、写入后无法确认 |

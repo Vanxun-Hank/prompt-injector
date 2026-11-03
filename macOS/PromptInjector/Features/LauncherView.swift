@@ -227,7 +227,7 @@ final class PromptTable: NSTableView {
             cell.category = true
             cell.title.stringValue = category.name
             cell.count.stringValue = String(category.entryCount)
-            Theme.glow(cell.title, color: Theme.categoryColor(category.id))
+            Theme.glow(cell.title, color: Theme.categoryColor(category.id, in: categories))
             cell.setAccessibilityLabel(category.name)
         } else {
             let entry = visibleEntries[row]
@@ -351,8 +351,8 @@ final class PromptTable: NSTableView {
             breadcrumb.layer?.shadowOpacity = 0
             intro.left = "分类"; intro.right = "\(categories.reduce(0) { $0 + $1.entryCount }) 条内容"
         case .entries(let id), .detail(let id, _):
-            breadcrumb.stringValue = Theme.categoryName(id); breadcrumb.font = .systemFont(ofSize: 14, weight: .medium)
-            Theme.glow(breadcrumb, color: Theme.categoryColor(id))
+            breadcrumb.stringValue = Theme.categoryName(id, in: categories); breadcrumb.font = .systemFont(ofSize: 14, weight: .medium)
+            Theme.glow(breadcrumb, color: Theme.categoryColor(id, in: categories))
             intro.left = "\(visibleEntries.count) 条内容"; intro.right = ""
         }
         logo.isHidden = navigation.page != .categories
@@ -389,6 +389,10 @@ final class PromptTable: NSTableView {
         if let entry = currentEntry { onInsert?(entry) }
     }
     @objc private func libraryChanged(_ notification: Notification) {
+        library.load(.categories) { [weak self] result in
+            guard let self, case .success(.categories(let values)) = result else { return }
+            self.categories = values; self.updateHeader()
+        }
         guard let category = notification.userInfo?["category"] as? String else { return }
         switch navigation.page {
         case .categories: break

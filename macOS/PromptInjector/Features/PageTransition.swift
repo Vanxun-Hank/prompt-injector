@@ -2,6 +2,12 @@ import AppKit
 
 /// Animates only the readable viewport. The material, navigation and action bar stay still.
 @MainActor final class PageTransition {
+    static func fade(_ view: NSView, duration: TimeInterval) {
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion, view.window?.isVisible == true else { return }
+        let transition = CATransition(); transition.type = .fade; transition.duration = duration
+        transition.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        view.wantsLayer = true; view.layer?.add(transition, forKey: "content-fade")
+    }
     enum Direction { case forward, backward }
     private var outgoing: PassiveView?
     private weak var incoming: NSView?

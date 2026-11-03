@@ -24,12 +24,12 @@ final class SQLiteRepositoryTests: XCTestCase {
         let seeds = try PromptSeed.entries()
         do {
             let repo = repository()
-            XCTAssertEqual(try repo.categories().map(\.id), PromptCategory.all.map(\.id))
+            XCTAssertEqual(try repo.categories().map(\.id), PromptCategory.initial.map(\.id))
             XCTAssertEqual(try repo.categories().reduce(0) { $0 + $1.entryCount }, seeds.count)
             for entry in seeds { XCTAssertEqual(try repo.entry(id: entry.id, category: entry.categoryID), entry) }
         }
         let reopened = repository { XCTFail("Seed must not be read on restart"); return [] }
-        let summaries = try PromptCategory.all.flatMap { try reopened.summaries(in: $0.id) }
+        let summaries = try PromptCategory.initial.flatMap { try reopened.summaries(in: $0.id) }
         XCTAssertEqual(Set(summaries.map(\.id)), Set(seeds.map(\.id)))
         XCTAssertEqual(summaries.count, seeds.count)
     }
