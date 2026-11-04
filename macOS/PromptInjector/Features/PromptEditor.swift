@@ -30,7 +30,7 @@ final class EditorText: SurfaceView {
 @MainActor final class PromptEditorView: FlippedView, NSTextFieldDelegate, NSTextViewDelegate, NSTableViewDataSource, NSTableViewDelegate {
     let reviewList = NSTableView(), reviewListScroll = NSScrollView()
     private var reviewItems: [ExperienceItem] = []
-    var onReviewSelect: ((Int) -> Void)?
+    var onReviewSelect: ((String) -> Void)?
     private var settingReviewSelection = false
     private var editingEnabled = true
     let reviewMode: Bool
@@ -51,9 +51,11 @@ final class EditorText: SurfaceView {
     let adoptButton = ActionButton(title: "采用候选", symbol: "checkmark", target: nil, action: nil)
     let candidateEditor = GeneratedPromptEditor()
     private var creatingCategory = false
+    private(set) var categoryChooser: CategoryPopover?
     let info = SurfaceView(color: Theme.shell), content = SurfaceView(color: Theme.shell, border: Theme.hex(0x626262))
     private let infoScroll = NSScrollView(), infoBody = FlippedView()
     private let infoHeading = Theme.label("条目信息", size: 16, weight: .medium)
+    let titleError = Theme.label(size: 11, color: Theme.error), categoryError = Theme.label(size: 11, color: Theme.error), promptError = Theme.label(size: 12, color: Theme.error)
     private let labels = ["标题 *", "分类", "简述", "来源"].map { Theme.label($0, size: 12, color: Theme.secondary) }
     let titleField = NSTextField(), sourceField = NSTextField()
     private let titleBox = SurfaceView(color: Theme.shell, radius: 9), sourceBox = SurfaceView(color: Theme.shell, radius: 9)
@@ -84,6 +86,7 @@ final class EditorText: SurfaceView {
         infoScroll.drawsBackground = false; infoScroll.hasVerticalScroller = true; infoScroll.scrollerStyle = .overlay; infoScroll.documentView = infoBody
         [infoHeading, titleBox, categoryBox, summaryText, sourceBox, newCategoryLabel, newCategoryBox].forEach(infoBody.addSubview)
         labels.forEach(infoBody.addSubview)
+        [titleError, categoryError].forEach(infoBody.addSubview); content.addSubview(promptError)
         [generateButton, configureButton].forEach(info.addSubview)
         [previousButton, nextButton].forEach(info.addSubview); sourceBox.addSubview(sourceIcon)
         for (field, box, label, value) in [(titleField, titleBox, "标题", draft.entry.title), (sourceField, sourceBox, "来源", draft.entry.source), (newCategoryField, newCategoryBox, "新分类名称", draft.newCategoryName ?? "")] {
@@ -113,7 +116,8 @@ final class EditorText: SurfaceView {
         updateCategory(); showCandidate()
         if reviewMode {
             originalText.text.isEditable = false; sourceField.isEditable = false
-            [labels[0], labels[1], labels[2], titleBox, categoryBox, summaryText, sourceBox, newCategoryLabel, newCategoryBox].forEach(content.addSubview)
+            content.addSubview(nextButton)
+            [labels[0], labels[1], labels[2], titleBox, categoryBox, summaryText, sourceBox, newCategoryLabel, newCategoryBox, titleError, categoryError].forEach(content.addSubview)
             info.addSubview(infoHeading); infoHeading.stringValue = "待保存条目"
             info.addSubview(reviewListScroll)
             reviewList.addTableColumn(NSTableColumn(identifier: .init("review"))); reviewList.headerView = nil
@@ -124,7 +128,7 @@ final class EditorText: SurfaceView {
             reviewListScroll.hasVerticalScroller = true; reviewListScroll.scrollerStyle = .overlay
         }
         sourceField.maximumNumberOfLines = 1; sourceField.lineBreakMode = .byTruncatingTail; sourceField.cell?.wraps = false
-        sourceField.toolTip = draft.entry.source
+        sourceField.toolTip = draft.entry.source; clearValidation()
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     var value: PromptEntry { .init(id: id, categoryID: category, title: titleField.stringValue, summary: summaryText.text.string, originalExperience: originalText.text.string, source: sourceField.stringValue, explanation: explanationText.text.string, prompt: promptText.text.string) }
@@ -142,14 +146,40 @@ final class EditorText: SurfaceView {
         generateButton.isEnabled = enabled; configureButton.isEnabled = enabled; adoptButton.isEnabled = enabled && candidate != nil; candidateEditor.setEditingEnabled(enabled)
         [summaryText, promptText, originalText, explanationText].forEach { $0.text.isEditable = enabled }
         if reviewMode { originalText.text.isEditable = false }
-        previousButton.isEnabled = enabled && reviewIndex > 0; nextButton.isEnabled = enabled && reviewIndex + 1 < reviewTotal
+        previousButton.isEnabled = enabled && reviewIndex > 0; nextButton.isEnabled = enabled
     }
-    func controlTextDidChange(_ obj: Notification) { needsLayout = true; onChange?() }
-    func textDidChange(_ notification: Notification) { onChange?() }
+    func clearValidation() {
+        [titleError, categoryError, promptError].forEach { $0.stringValue = ""; $0.isHidden = true }
+        titleBox.layer?.borderColor = Theme.border.cgColor; categoryBox.layer?.borderColor = Theme.border.cgColor
+        promptText.layer?.borderWidth = 0; needsLayout = true
+    }
+    @discardableResult func validateFields() -> Bool {
+        clearValidation()
+        if value.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            titleError.stringValue = "请输入标题。"; titleError.isHidden = false; titleBox.layer?.borderColor = Theme.error.cgColor
+            window?.makeFirstResponder(titleField); needsLayout = true; return false
+        }
+        if value.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            segments.selectedIndex = 0; promptError.stringValue = "请填写 Prompt。"; promptError.isHidden = false
+            promptText.layer?.borderColor = Theme.error.cgColor; promptText.layer?.borderWidth = 1
+            window?.makeFirstResponder(promptText.text); needsLayout = true; return false
+        }
+        do {
+            if creatingCategory { _ = try PromptCategory.normalizedName(newCategoryField.stringValue) }
+            else if !categories.contains(where: { $0.id == category }) { throw LibraryFailure.invalidCategory }
+        } catch {
+            categoryError.stringValue = error.localizedDescription; categoryError.isHidden = false
+            categoryBox.layer?.borderColor = Theme.error.cgColor; window?.makeFirstResponder(categoryButton); needsLayout = true; return false
+        }
+        return true
+    }
+    func controlTextDidChange(_ obj: Notification) { clearValidation(); needsLayout = true; onChange?() }
+    func textDidChange(_ notification: Notification) { clearValidation(); onChange?() }
     private var reviewIndex = 0, reviewTotal = 0
     func setReviewPosition(index: Int, total: Int, title: String) {
         reviewIndex = index; reviewTotal = total; infoHeading.stringValue = reviewMode ? "待保存条目" : "\(index + 1) / \(total) · \(title)"
-        previousButton.isEnabled = index > 0; nextButton.isEnabled = index + 1 < total
+        previousButton.isEnabled = index > 0; nextButton.isEnabled = true
+        nextButton.title = index + 1 < total ? "确认并下一条" : "确认此条"
     }
     func setReviewItems(_ items: [ExperienceItem], selected: Int) {
         reviewItems = items; settingReviewSelection = true; reviewList.reloadData()
@@ -162,33 +192,31 @@ final class EditorText: SurfaceView {
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let item = reviewItems[row], cell = ManagementSummaryCell()
         cell.heading.stringValue = item.candidate?.title.isEmpty == false ? item.candidate!.title : item.title
-        cell.summary.stringValue = item.candidate?.summary ?? ""
+        cell.summary.stringValue = (item.confirmed == true ? "已确认 · " : "待确认 · ") + (item.candidate?.summary ?? "")
         return cell
     }
     func tableViewSelectionDidChange(_ notification: Notification) {
         guard editingEnabled, !settingReviewSelection, reviewItems.indices.contains(reviewList.selectedRow) else { return }
-        onReviewSelect?(reviewList.selectedRow)
+        onReviewSelect?(reviewItems[reviewList.selectedRow].id)
     }
     private func updateCategory() {
-        categoryButton.title = creatingCategory ? "新增分类" : Theme.categoryName(category, in: categories)
+        categoryButton.title = creatingCategory ? (newCategoryField.stringValue + "（新）") : Theme.categoryName(category, in: categories)
         dot?.removeFromSuperview(); let next = CategoryDot(category: category, categories: categories); categoryBox.addSubview(next); dot = next
         needsLayout = true
     }
     private func chooseCategory() {
-        let menu = NSMenu()
-        for value in categories {
-            let item = NSMenuItem(title: value.name, action: #selector(selectedCategory(_:)), keyEquivalent: "")
-            item.target = self; item.representedObject = value.id; item.state = value.id == category ? .on : .off; menu.addItem(item)
+        let chooser = CategoryPopover(categories: categories, selected: creatingCategory ? "" : category) { [weak self] id, name in
+            guard let self else { return }
+            self.creatingCategory = name != nil
+            if let id { self.category = id }
+            self.newCategoryField.stringValue = name ?? ""
+            self.clearValidation(); self.updateCategory(); self.onChange?()
         }
-        menu.addItem(.separator())
-        let add = NSMenuItem(title: "新增分类…", action: #selector(addCategory), keyEquivalent: ""); add.target = self; menu.addItem(add)
-        menu.popUp(positioning: menu.items.first { $0.representedObject as? String == category }, at: NSPoint(x: 12, y: 40), in: categoryBox)
+        categoryChooser = chooser; chooser.show(relativeTo: categoryBox)
+        if creatingCategory { chooser.showCreate(name: newCategoryField.stringValue) }
     }
-    @objc private func selectedCategory(_ sender: NSMenuItem) { guard let id = sender.representedObject as? String else { return }; category = id; creatingCategory = false; updateCategory(); onChange?() }
     @objc func addCategory() {
-        creatingCategory = true; updateCategory(); onChange?()
-        layoutSubtreeIfNeeded(); newCategoryBox.scrollToVisible(newCategoryBox.bounds)
-        window?.makeFirstResponder(newCategoryField)
+        chooseCategory(); categoryChooser?.showCreate(name: creatingCategory ? newCategoryField.stringValue : "")
     }
     func setCategories(_ values: [PromptCategory]) { categories = values; candidateEditor.setCategories(values); updateCategory(); showCandidate() }
     func receiveCandidate(_ value: GeneratedPrompt) {
@@ -198,7 +226,7 @@ final class EditorText: SurfaceView {
         adoptButton.isEnabled = candidate != nil; needsLayout = true
     }
     func adoptCandidate() {
-        guard let candidate else { return }
+        guard let candidate, candidateEditor.validateFields() else { return }
         do { try candidate.validate(categories: categories) }
         catch { onFailure?(error); return }
         titleField.stringValue = candidate.title; summaryText.text.string = candidate.summary
@@ -228,10 +256,12 @@ final class EditorText: SurfaceView {
         sourceIcon.image = platform.asset.flatMap { DesignAssets.image($0) } ?? NSImage(systemSymbolName: "link", accessibilityDescription: "来源")
         sourceIcon.frame = NSRect(x: 12, y: 14, width: 16, height: 16)
         Theme.placeLine(sourceField, in: NSRect(x: 40, y: 0, width: iw - 100, height: 44), stableBaseline: true)
-        newCategoryLabel.isHidden = !creatingCategory; newCategoryBox.isHidden = !creatingCategory
+        newCategoryLabel.isHidden = true; newCategoryBox.isHidden = true
         newCategoryLabel.frame = NSRect(x: 24, y: 474, width: iw - 48, height: 18)
         newCategoryBox.frame = NSRect(x: 24, y: 498, width: iw - 48, height: 44)
         Theme.placeLine(newCategoryField, in: NSRect(x: 12, y: 0, width: iw - 72, height: 44), stableBaseline: true)
+        titleError.frame = NSRect(x: 24, y: 144, width: iw - 48, height: 16)
+        categoryError.frame = NSRect(x: 24, y: 232, width: iw - 48, height: 16)
         let actionsY = h - 60
         generateButton.frame = NSRect(x: 24, y: actionsY, width: iw - 104, height: 40)
         configureButton.frame = NSRect(x: iw - 64, y: actionsY, width: 40, height: 40)
@@ -256,7 +286,8 @@ final class EditorText: SurfaceView {
         [promptLabel, promptText].forEach { $0.isHidden = !prompt }
         [originalLabel, originalText, explanationRule, explanationLabel, explanationText].forEach { $0.isHidden = prompt || reviewing }
         if reviewMode {
-            infoScroll.isHidden = true; previousButton.isHidden = true; nextButton.isHidden = true
+            infoScroll.isHidden = true; previousButton.isHidden = true; nextButton.isHidden = false
+            nextButton.frame = NSRect(x: cw - 184, y: h - 60, width: 160, height: 36)
             infoHeading.frame = NSRect(x: 24, y: 24, width: iw - 48, height: 24)
             reviewListScroll.frame = NSRect(x: 12, y: 64, width: iw - 24, height: h - 88)
             reviewList.tableColumns.first?.width = reviewListScroll.contentSize.width
@@ -268,12 +299,16 @@ final class EditorText: SurfaceView {
             categoryBox.frame = NSRect(x: cw - categoryWidth - 24, y: 48, width: categoryWidth, height: 44)
             categoryButton.frame = NSRect(x: 27, y: 5, width: categoryWidth - 60, height: 34)
             categoryArrow.frame = NSRect(x: categoryWidth - 28, y: 14, width: 16, height: 16)
+            titleError.frame = NSRect(x: 24, y: 94, width: titleWidth, height: 18)
+            categoryError.frame = NSRect(x: cw - categoryWidth - 24, y: 94, width: categoryWidth, height: 18)
             labels[2].frame = NSRect(x: 24, y: 108, width: cw - 48, height: 18)
             summaryText.frame = NSRect(x: 24, y: 132, width: cw - 48, height: 44)
             newCategoryLabel.frame = NSRect(x: 24, y: 192, width: cw - 48, height: 18)
             newCategoryBox.frame = NSRect(x: 24, y: 216, width: cw - 48, height: 44)
             Theme.placeLine(newCategoryField, in: NSRect(x: 12, y: 0, width: cw - 72, height: 44), stableBaseline: true)
-            let tabY: CGFloat = creatingCategory ? 280 : 196
+            let errorGap: CGFloat = titleError.isHidden && categoryError.isHidden ? 0 : 22
+            labels[2].frame.origin.y += errorGap; summaryText.frame.origin.y += errorGap
+            let tabY: CGFloat = 196 + errorGap
             segments.frame = NSRect(x: 24, y: tabY, width: min(400, cw - 48), height: 40)
             contentRule.frame = NSRect(x: 24, y: tabY + 56, width: cw - 48, height: 1)
             let textY = tabY + 76
@@ -287,10 +322,14 @@ final class EditorText: SurfaceView {
             Theme.placeLine(sourceField, in: NSRect(x: 40, y: 0, width: cw - 100, height: 36), stableBaseline: true)
             reviewOriginalScroll.isHidden = segments.selectedIndex != 1
             let originalY = textY + (sourceBox.isHidden ? 0 : 52)
-            reviewOriginalScroll.frame = NSRect(x: 32, y: originalY, width: min(640, cw - 64), height: max(80, h - originalY - 24))
+            reviewOriginalScroll.frame = NSRect(x: 32, y: originalY, width: min(640, cw - 64), height: max(80, h - originalY - 80))
             reviewOriginal.arrange(width: reviewOriginalScroll.contentSize.width)
-            for field in [promptText, explanationText] { field.frame = NSRect(x: 20, y: textY, width: cw - 40, height: max(80, h - textY - 24)) }
+            for field in [promptText, explanationText] { field.frame = NSRect(x: 20, y: textY, width: cw - 40, height: max(80, h - textY - 80)) }
 
+        }
+        if !promptError.isHidden {
+            promptError.frame = NSRect(x: promptText.frame.minX + 12, y: promptText.frame.maxY - 18, width: promptText.frame.width - 24, height: 18)
+            promptText.frame.size.height -= 24
         }
     }
 }

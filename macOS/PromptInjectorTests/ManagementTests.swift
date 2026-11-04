@@ -65,6 +65,15 @@ final class ManagementTests: XCTestCase {
         try repository.save(entry(id: "experiment-result"), replacing: nil)
         XCTAssertEqual(try repository.editorDraft()?.entry, draft)
     }
+    func testCategoryIDAndSearchIntersectionNeverMixesRequirementsIntoCoding() throws {
+        let r = repo()
+        try r.save(entry(id: "coding-one", category: "coding", title: "实际运行测试"), replacing: nil)
+        try r.save(entry(id: "requirements-one", category: "requirements", title: "先说明改动与测试"), replacing: nil)
+        XCTAssertEqual(try r.managedSummaries(category: "coding", query: "测试").map { $0.summary.id }, ["coding-one"])
+        XCTAssertEqual(try r.managedSummaries(category: "requirements", query: "测试").map { $0.summary.id }, ["requirements-one"])
+        XCTAssertTrue(try r.managedSummaries(category: "coding", query: "先说明改动").isEmpty)
+        XCTAssertEqual(try r.categories().first { $0.id == "coding" }?.entryCount, try r.managedSummaries(category: "coding", query: "").count)
+    }
     func testSearchIsLiteralScopedAndDoesNotSearchBody() throws {
         let repository = repo(); try repository.save(entry(), replacing: nil)
         XCTAssertEqual(try repository.managedSummaries(category: "coding", query: "%_").count, 1)

@@ -2,9 +2,11 @@
 
 历史基线（2026-10-30）：**Stage 1 在当前 macOS / Codex 普通主输入框范围验收完成；用户已明确授权 Stage 2 管理页与整套 Figma UI 移植，开发版已通过内容与原生 UI 回归**。Stage 1 的 SQLite 分层存储、真实在线/断网插入不发送、未授权拒绝和复制降级、原目标失效保护与性能证据见 [stage1-acceptance.md](stage1-acceptance.md)。新版状态见下文；原型沿革和授权记录在 [prototype.md](prototype.md)。
 
-## 当前增量 · v0.5 · 2026-11-04
+## 当前增量 · v0.5.1 · 2026-11-04
 
 已按批准的 V6 取消聊天入口，保留原文／链接一键整理、可选手贴 Prompt、独立选择与审核保存、垃圾桶删除入口、统一底色和轻量过渡。数据与历史保留；验证和安装结果见 testing.md 与 content-management-v6.md。Stage 4 同步不在本轮范围。
+
+本轮修复 V7 Figma 分类示例、锚定菜单与紧凑确认框；对应 AppKit 修复分类切换旧结果、分类选择／新增、详情操作、字段验证、新旧建议比较与确认／批量选择分离。保留现有原生布局，未整体迁移 V7 卡片网格和原位编辑。验证及回滚见 [management-ui-fixes.md](management-ui-fixes.md)。
 
 ## Stage 1 · v0.1 · 快捷调用
 

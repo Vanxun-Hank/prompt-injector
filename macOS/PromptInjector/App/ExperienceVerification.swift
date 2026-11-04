@@ -63,14 +63,16 @@ extension AppDelegate {
         try? await model.finish()
         let resumed = try? repository.experienceDraft()
         check("experience/reopen-independent-prompts", resumed?.items[0].candidate?.prompt == "用户粘贴的 Prompt" && resumed?.items[1].candidate != nil)
-        model.changePrompt(""); model.toggle(first); model.organize()
-        check("experience/empty-prompt-blocks-review", manager.root.page == .experience && model.failed)
+        model.changePrompt(""); model.toggle(first)
+        model.confirm(first)
+        check("experience/empty-prompt-blocks-review", model.failed && model.session.confirmed.isEmpty && model.reviewItems.contains { $0.id == first })
         model.changePrompt("用户粘贴的 Prompt"); view.organize.performClick(nil)
         await until { manager.root.editor?.reviewMode == true }
         window.setContentSize(NSSize(width: 1440, height: 960)); window.contentView?.layoutSubtreeIfNeeded()
         guard let editor = manager.root.editor else { check("experience/review-open", false); window.orderOut(nil); return checks }
         check("experience/review-source-readonly", !editor.originalText.text.isEditable && !editor.sourceField.isEditable)
-        editor.titleField.stringValue = "审核后的短标题"; editor.summaryText.text.string = "有硬性规则时使用"; editor.explanationText.text.string = "保留方法与条件"; editor.addCategory(); editor.newCategoryField.stringValue = "学习与整理"; editor.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+        check("experience/confirm-action-visible", !editor.nextButton.isHidden && editor.nextButton.superview === editor.content && editor.content.bounds.contains(editor.nextButton.frame))
+        editor.titleField.stringValue = "审核后的短标题"; editor.summaryText.text.string = "有硬性规则时使用"; editor.explanationText.text.string = "保留方法与条件"; editor.addCategory(); editor.categoryChooser?.nameField.stringValue = "学习与整理"; editor.categoryChooser?.createButton.performClick(nil); editor.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
         await capture("experience-review")
         editor.reviewList.selectRowIndexes(IndexSet(integer: 1), byExtendingSelection: false)
         check("experience/audit-list-stashes-edits", manager.root.editor !== editor)
@@ -88,7 +90,7 @@ extension AppDelegate {
         checks.append(["name": "experience/original-visible", "passed": !editor.reviewOriginalScroll.isHidden && original.text.visibleRect.intersects(glyphs),
                        "textFrame": NSStringFromRect(original.text.frame), "visibleRect": NSStringFromRect(original.text.visibleRect),
                        "glyphRect": NSStringFromRect(glyphs), "clipBounds": NSStringFromRect(editor.reviewOriginalScroll.contentView.bounds)])
-        manager.saveEditor(); await until { manager.experience == nil && manager.selectedEntry != nil }
+        manager.confirmExperienceReview(); manager.confirmExperienceReview(); manager.saveEditor(); await until { manager.experience == nil && manager.selectedEntry != nil }
         let saved = try? repository.managedSummaries(category: nil, query: "审核后的短标题")
         check("experience/batch-saved-with-sixth-category", saved?.count == 1 && (try? repository.categories().count) == 6)
         check("experience/draft-not-resurrected-after-save", (try? repository.experienceDraft()) == nil)
@@ -98,9 +100,9 @@ extension AppDelegate {
             await until { launcher.launcher.currentEntry?.id == entry.id }
             check("experience/saved-immediately-loads-in-launcher", launcher.launcher.currentEntry?.prompt == entry.prompt)
             launcher.window?.orderOut(nil)
-            manager.confirmDeletion = { _ in false }; manager.root.libraryView.deleteButton.performClick(nil)
+            manager.confirmDeletion = { _ in false }; manager.deleteSelected()
             check("experience/delete-cancel-keeps-entry", (try? repository.entry(id: entry.id, category: entry.categoryID)) != nil)
-            manager.confirmDeletion = { _ in true }; manager.root.libraryView.deleteButton.performClick(nil); await until { !manager.isSaving }
+            manager.confirmDeletion = { _ in true }; manager.deleteSelected(); await until { !manager.isSaving }
             check("experience/deleted-entry-no-longer-loads", (try? repository.entry(id: entry.id, category: entry.categoryID)) == nil)
         }
         manager.presentExperience(ExperienceSession())
@@ -143,7 +145,7 @@ extension AppDelegate {
                     stage = "organize"; session.items[i].candidate = try await service.organize(session.items[i], source: session.source, context: session.raw, categories: repository.categories())
                     guard let candidate = session.items[i].candidate else { throw GenerationFailure.invalidOutput }
                     session.items[i].candidate = GeneratedPrompt(title: candidate.title + "（验证编辑）", summary: candidate.summary, explanation: candidate.explanation, prompt: candidate.prompt, categoryID: candidate.categoryID, newCategoryName: candidate.newCategoryName)
-                    session.items[i].selected = true; session.revision += 1
+                    session.items[i].selected = true; session.items[i].confirmed = true; session.revision += 1
                     try await library.storeExperienceDraft(session)
                 }
                 stage = "save"; let saved = try await library.saveExperiences(session)

@@ -40,7 +40,8 @@ final class GenerationTests: XCTestCase {
         var failure = false; editor.onFailure = { _ in failure = true }
         editor.candidateEditor.fields[3].text.string = ""
         editor.adoptCandidate()
-        XCTAssertTrue(failure); XCTAssertEqual(editor.value.title, "生成后继续手改")
+        XCTAssertFalse(failure); XCTAssertFalse(editor.candidateEditor.validationLabel.isHidden)
+        XCTAssertEqual(editor.value.title, "生成后继续手改")
         editor.candidateEditor.fields[3].text.string = candidate.prompt
         editor.adoptCandidate()
         XCTAssertEqual(editor.value.title, "候选内手改标题")
@@ -58,9 +59,9 @@ final class GenerationTests: XCTestCase {
             XCTAssertTrue(button.superview === editor.info)
         }
         editor.addCategory(); editor.layoutSubtreeIfNeeded()
-        if let box = editor.newCategoryField.superview, let scroll = editor.newCategoryField.enclosingScrollView, let doc = scroll.documentView {
-            XCTAssertTrue(scroll.documentVisibleRect.contains(box.convert(box.bounds, to: doc)))
-        } else { XCTFail("New category name is not in the metadata scroll view") }
+        XCTAssertNotNil(editor.categoryChooser)
+        XCTAssertTrue(editor.categoryChooser!.view.bounds.contains(editor.categoryChooser!.nameField.convert(editor.categoryChooser!.nameField.bounds, to: editor.categoryChooser!.view)))
+        editor.categoryChooser?.popover.performClose(nil)
         for button in [editor.generateButton, editor.configureButton] {
             XCTAssertTrue(editor.info.bounds.contains(button.convert(button.bounds, to: editor.info)))
         }

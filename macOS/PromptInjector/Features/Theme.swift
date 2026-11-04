@@ -90,7 +90,7 @@ final class ActionButton: NSButton {
         if !isEnabled { contentTintColor = Theme.tertiary }
         let fill: NSColor = (primary || selectedStyle) && isEnabled
             ? (isHighlighted ? Theme.hex(0x353535) : hovered ? Theme.hex(0x323232) : Theme.selection)
-            : NSColor(white: 1, alpha: isHighlighted ? 0.12 : hovered ? 0.06 : 0)
+            : NSColor(white: 1, alpha: !isEnabled ? 0 : isHighlighted ? 0.12 : hovered ? 0.06 : 0)
         layer?.backgroundColor = fill.cgColor
         layer?.borderWidth = outlined ? 1 : 0
         layer?.borderColor = Theme.border.cgColor

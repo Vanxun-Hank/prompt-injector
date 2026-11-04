@@ -9,7 +9,9 @@ import Foundation
     var onChange: (() -> Void)?
     var onReview: (() -> Void)?
     var onSaved: (([PromptEntry]) -> Void)?
-    var confirmReplacement: () -> Bool = { false }
+    var onSuggestion: ((String, GeneratedPrompt) -> Void)?
+    private(set) var activeItemID: String?
+    private(set) var failedItemID: String?
     private let library: PromptLibrary
     private let service: ExperienceServing
     private var operationID: UUID?
@@ -28,7 +30,7 @@ import Foundation
     }
     deinit { task?.cancel(); autosave?.cancel() }
     var current: ExperienceItem? { session.current }
-    var reviewItems: [ExperienceItem] { session.selected }
+    var reviewItems: [ExperienceItem] { session.items.filter { $0.candidate != nil } }
     func changeInput(_ value: String) {
         guard !saving else { return }
         if let i = session.items.firstIndex(where: { $0.id == session.currentID }) { session.items[i].input = value }
@@ -48,8 +50,8 @@ import Foundation
     }
     func choose(_ id: String) {
         guard !saving, session.items.contains(where: { $0.id == id }) else { return }
-        if session.currentID != id { cancel() }
         session.currentID = id; changed()
+        if let suggestion = current?.suggestion { onSuggestion?(id, suggestion) }
     }
     func send() { guard !busy, !saving, session.items.isEmpty else { return }; identify() }
     func beginManual() {
@@ -58,9 +60,11 @@ import Foundation
     }
     func changePrompt(_ text: String) {
         guard !saving else { return }
-        let wasBusy = busy; cancel()
+        let wasBusy = busy
+        if activeItemID == session.currentID { cancel() }
         if let i = session.items.firstIndex(where: { $0.id == session.currentID }) {
             let c = session.items[i].candidate
+            session.items[i].confirmed = false; session.items[i].suggestion = nil
             session.items[i].candidate = GeneratedPrompt(title: c?.title ?? session.items[i].title, summary: c?.summary ?? "",
                 explanation: c?.explanation ?? "", prompt: text, categoryID: c?.categoryID, newCategoryName: c?.newCategoryName)
         } else { session.manualPrompt = text }
@@ -94,30 +98,50 @@ import Foundation
             guard self.valid(token), self.session.input == input, self.session.raw == raw else { self.discard(token); return }
             self.session.items = items; self.session.currentID = items.first?.id
             self.status = ""; self.changed()
-            if items.count == 1 {
-                self.session.items[0].selected = true; self.changed()
-                try await self.generate(items[0], token: token)
-                if self.valid(token) { self.onReview?() }
-            }
+
         }
     }
     func organize() {
         guard !busy, !saving else { return }
-        guard !session.selected.isEmpty else { show(GenerationFailure.nothingSelected); return }
-        guard session.selected.allSatisfy({ !($0.candidate?.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) }) else {
-            show(GenerationFailure.emptyPrompt); return
-        }
+        guard reviewItems.contains(where: { $0.candidate?.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false }) else { show(GenerationFailure.emptyPrompt); return }
         status = ""; failed = false; onReview?()
+    }
+    func generateSelected() {
+        guard !busy, !saving else { return }
+        let selected = session.selected
+        guard !selected.isEmpty else { show(GenerationFailure.nothingSelected); return }
+        run(stage: "experience-organize") { [weak self] token in
+            guard let self else { return }
+            for item in selected {
+                guard self.valid(token) else { return }
+                try await self.generate(item, token: token)
+            }
+        }
     }
     func generateCurrent() {
         guard !busy, !saving, let item = current else { return }
-        if let prompt = item.candidate?.prompt, !prompt.isEmpty, !confirmReplacement() { return }
+        if let suggestion = item.suggestion { onSuggestion?(item.id, suggestion); return }
         run(stage: "experience-organize") { [weak self] token in
             guard let self else { return }
             try await self.generate(item, token: token)
         }
     }
+    func confirm(_ id: String) {
+        guard !busy, !saving, let i = session.items.firstIndex(where: { $0.id == id }), let c = session.items[i].candidate else { return }
+        guard !c.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !c.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { show(GenerationFailure.invalidOutput); return }
+        session.items[i].confirmed = true; changed()
+    }
+    func adoptSuggestion(_ id: String, _ expected: GeneratedPrompt) {
+        guard !saving, let i = session.items.firstIndex(where: { $0.id == id }), session.items[i].suggestion == expected else { return }
+        session.items[i].candidate = expected; session.items[i].suggestion = nil; session.items[i].confirmed = false
+        DiagnosticLog.shared.write(.candidateAdopted, fields: .init(stage: "experience-explicit-adoption")); changed()
+    }
+    func keepCurrent(_ id: String) {
+        guard !saving, let i = session.items.firstIndex(where: { $0.id == id }) else { return }
+        session.items[i].suggestion = nil; changed()
+    }
     private func generate(_ item: ExperienceItem, token: UUID) async throws {
+        activeItemID = item.id; failedItemID = nil; onChange?()
         let categories: [PromptCategory] = try await withCheckedThrowingContinuation { continuation in
             library.load(.categories) { result in
                 if case .success(.categories(let values)) = result { continuation.resume(returning: values) }
@@ -130,12 +154,16 @@ import Foundation
         try value.validate(categories: categories)
         guard valid(token), let index = session.items.firstIndex(where: { $0.id == item.id }),
               session.items[index].candidate == item.candidate else { discard(token); return }
-        session.items[index].candidate = value; session.items[index].generatedMessageCount = item.messages.count
+        if let old = item.candidate, !old.prompt.isEmpty {
+            session.items[index].suggestion = value
+        } else { session.items[index].candidate = value; session.items[index].confirmed = false }
+        session.items[index].generatedMessageCount = item.messages.count
         changed(); try await persist()
+        if session.items[index].suggestion != nil { onSuggestion?(item.id, value) }
     }
     func updateCandidate(_ id: String, _ value: GeneratedPrompt) {
         guard !saving, let i = session.items.firstIndex(where: { $0.id == id }) else { return }
-        cancel(); session.items[i].candidate = value; changed(notify: false)
+        if activeItemID == id { cancel() }; session.items[i].candidate = value; session.items[i].confirmed = false; session.items[i].suggestion = nil; changed(notify: false)
     }
     private func run(stage: String, work: @escaping (UUID) async throws -> Void) {
         let token = UUID(); operationID = token; busy = true; failed = false; status = stage == "experience-organize" ? "正在整理…" : "正在处理…"; onChange?()
@@ -147,11 +175,11 @@ import Foundation
                 guard self.valid(token) else { return }
                 try await work(token)
                 guard self.valid(token) else { return }
-                self.busy = false; self.operationID = nil; self.task = nil; self.status = ""; self.onChange?()
+                self.busy = false; self.activeItemID = nil; self.operationID = nil; self.task = nil; self.status = ""; self.onChange?()
                 DiagnosticLog.shared.write(.generationFinished, operationID: token, fields: .init(stage: stage))
             } catch {
                 guard self.valid(token) else { self.discard(token); return }
-                self.busy = false; self.operationID = nil; self.task = nil; self.failPending(); self.show(error)
+                self.failedItemID = self.activeItemID; self.activeItemID = nil; self.busy = false; self.operationID = nil; self.task = nil; self.failPending(); self.show(error)
                 DiagnosticLog.shared.write(.generationFailed, level: .warning, operationID: token, fields: .init(stage: stage, systemCode: (error as NSError).code))
                 try? await self.persist()
             }
@@ -170,7 +198,7 @@ import Foundation
     }
     func cancel() {
         guard let token = operationID else { return }
-        operationID = nil; task?.cancel(); task = nil; busy = false; status = "已取消，输入已保留。"; failed = false
+        operationID = nil; task?.cancel(); task = nil; busy = false; activeItemID = nil; status = "已取消，输入已保留。"; failed = false
         failPending(); onChange?()
         DiagnosticLog.shared.write(.generationCancelled, operationID: token, fields: .init(stage: "experience-cancelled"))
     }
@@ -191,6 +219,7 @@ import Foundation
     }
     func save() {
         guard !busy, !saving else { return }
+        guard !session.confirmed.isEmpty else { show(GenerationFailure.nothingConfirmed); return }
         saving = true; failed = false; status = "正在保存…"; onChange?()
         task = Task { [weak self] in
             guard let self else { return }

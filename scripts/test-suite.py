@@ -39,9 +39,11 @@ def validate_ui_report(report):
                 'experience/saved-immediately-loads-in-launcher', 'experience/deleted-entry-no-longer-loads',
                 'experience/empty-prompt-blocks-review', 'experience/manual-paste-skips-generation', 'experience/manual-pair-fit', 'experience/audit-list-stashes-edits', 'experience/audit-list-restores-edits', 'experience/audit-fields-fit-minimum',
                 'capture/experience-review-minimum', 'capture/experience-new', 'capture/experience-manual', 'capture/experience-manual-minimum', 'capture/experience-organize', 'capture/experience-minimum', 'capture/experience-review', 'capture/experience-original',
-                'capture/management-candidate', 'capture/management-new-category', 'capture/management-sixth-statistics'}
+                'capture/management-candidate', 'capture/management-new-category', 'capture/management-sixth-statistics',
+                'capture/management-delete-confirmation', 'capture/management-comparison', 'capture/management-category-create',
+                'categories/blank-name-stays-inline', 'management/delete-default-is-cancel', 'experience/confirm-action-visible'}
     captures = [c for c in checks if str(c.get('name', '')).startswith('capture/')]
-    return (report.get('passed') is True and len(checks) >= 85 and len(captures) == 33
+    return (report.get('passed') is True and len(checks) >= 85 and len(captures) == 36
             and required <= names and all(c.get('passed') is True for c in checks))
 
 def main():

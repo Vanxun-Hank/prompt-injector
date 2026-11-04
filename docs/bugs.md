@@ -84,3 +84,11 @@
 ## PI-026 · V6 仅粘贴 Prompt 后立即退出可能漏存
 
 复核发现 finish 仅检查 items/input；手动模式先填 Prompt、原文为空且未到 350 ms 自动保存时，退出不会排空该内容。修复 guard 同时检查 manualPrompt 与来源，全部批次保存后清空 manualPrompt。最小回归 ExperienceTests.testPromptOnlyManualDraftFlushesOnImmediateClose，覆盖立即结束并从新 repository 重开。旧输入与消息仍保留。
+
+## 管理 UI 修复 · v0.5.1 · 2026-11-04
+
+| 编号 | 根因与修复边界 | 回归证据 |
+| --- | --- | --- |
+| PI-027 | Figma category 使用手写示例数组，错误混入「先说明改动」；App 的 SQLite category_id＋搜索 AND 原本正确，但切换时旧 rows 未立即清空，会在新分类标题下暂留旧卡片。修正示例为编码3条；App 发查询前清空旧 rows/详情/计数，代次与页面拒绝迟到响应，不改 SQL。 | ManagementTests.testCategoryIDAndSearchIntersectionNeverMixesRequirementsIntoCoding 修复前已通过；ManagementFilteringTests.testChangingCategoryImmediatelyClearsOldRowsAndRejectsEarlierQueries 修复前真实失败，修复后通过。 |
+| PI-028 | 新确认流程初次接入后，审核集合仍按非空 Prompt 动态过滤，左列表旧索引与新集合错位。空 Prompt 保留候选集合，列表回调传稳定 ID，确认仍在字段旁拦截必填错误。 | ManagementInteractionTests.testClearingPromptKeepsReviewRowsAndStableSelectionUntilCorrection 修复前5断言失败；修复后可切B、返A保留空值，空值不可确认。独立 verdict仅对此项判 resolved。 |
+| PI-029 | Figma 部分保存页沿用原20条共享计数变量，列表已19条但底部仍0/20；菜单手动锚点误用整屏坐标，SWAP 删除确认继承角落位置。 | 剩余19／4／0各使用对应状态；菜单改相对触发器锚定，删除独立居中并按原详情 ID 取消。真实网页验证，证据 artifacts/management-v7-fixes/；这些是原型，不是 SQLite/API 验收。 |

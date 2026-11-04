@@ -1,6 +1,20 @@
 # 客户端回归测试套件
 
-## 2026-11-04 · V6 / v0.5.0 · 最新
+## 2026-11-04 · 管理 UI 修复 / v0.5.1 · 最新
+
+完整运行 `python3 scripts/test-suite.py`：**119 Swift、9 Python、165 原生检查、36 张 PNG** 通过。最终报告 `artifacts/tests/20261104T032656.681208Z/summary.json`；审查包 `build/Management-Fixes-Review/Prompt Injector.app`，build `20261104T032707Z`，source `3bd744da77a239d24cd1f86bc183cfef29a40180ebaf6ef9f6607960456bf546`，版本0.5.1。完整测试在隔离临时库运行，不修改正式数据。
+
+新增分类ID＋搜索AND、快速切换清空与迟到查询；分类Popover空名、规范化重名、待建名称；Unicode差异高亮；旧JSON不把批量勾选当确认；1／5／20条顺序模拟生成、确认1条、部分保存、剩余计数／当前ID／来源和新repository读取；保留／采用建议及后来的手改保护。审核清空Prompt再切条的独立回归先失败5断言，修复后通过。保留既有故障回滚、草稿恢复、分类扩展、统计、浮窗立即加载和插入路由检查。
+
+原生检查增加确认按钮真实可见、分类空名就地错误、删除取消默认与实际sheet可见；截图覆盖轻量新增分类、删除、并排比较及默认／最小审核。窗口捕获包含sheet，不能用单独sheet黑图作为视觉证据；最终36图已人工查看相关页面。复制与插入路由使用既有模拟目标，未重复真实Codex填写。
+
+Figma 网页实际点击验证：编码3条、编码AND「测试」1条；分类上下键/Enter、Escape、点外部关闭；同Popover新建与创建后自动选择；更多→居中删除→取消回原详情。Figma字段输入、API和保存仍是预设样例；新建空名／重名／失败单独示例页不是网络失败实测。设计修复前备份页408:1124，详见 management-ui-fixes.md。
+
+独立原生复核初判 fix（PI-028），修复后仅针对该项判 resolved；不扩大为全部系统重验。真实 DeepSeek、物理断网、真实跨应用插入、VoiceOver、系统 Reduce Motion 和最低macOS本轮未测。生成失败、取消、重试、迟到响应由控制器／模拟服务回归覆盖。
+
+同一签名包已安装并实际打开，PID50476／build20261104T032707Z与常用路径相符。更新前无App实例；备份旧App与两库到 `~/Library/Application Support/Prompt Injector/Backups/before-v051-20261104T033121Z/`。安装后表摘要未变；恢复3条草稿后只有payload的JSON键顺序变化，解码值、revision、原文、候选及勾选逐项相同，规范化两库摘要一致。实际正式内容仍0、分类7、使用事件5、经验草稿1，不恢复早期内容。报告 `artifacts/installation/v051/report.json`。
+
+## 2026-11-04 · V6 / v0.5.0 · 历史
 
 通过 `python3 scripts/verify-experience.py` 自运行入口实际运行 `python3 scripts/test-suite.py`：**111 Swift、9 Python、157 原生检查、33 张 PNG** 全部通过。最终报告 `artifacts/tests/20261103T163827.630468Z/summary.json`，包装报告 `artifacts/experience-verification/20261103T163827.570925Z/report.json`。测试包 `build/Management-V6-Review/Prompt Injector.app`，build `20261103T163837Z`，源码指纹 `d94a2d15362f0e4767628abbd9e57aeeebdde63d5ffab28f67ac5a084cf84ca4`，版本 0.5.0。
 

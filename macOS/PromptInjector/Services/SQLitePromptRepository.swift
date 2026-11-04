@@ -34,12 +34,12 @@ extension SQLitePromptRepository: ExperienceRepository {
     }
     func saveExperiences(_ session: ExperienceSession) throws -> [PromptEntry] {
         try session.validate(); try attachActivity()
-        guard !session.selected.isEmpty else { throw LibraryFailure.invalidFields }
+        guard !session.confirmed.isEmpty else { throw LibraryFailure.invalidFields }
         try execute("BEGIN IMMEDIATE")
         do {
             guard try experienceDraft() == session else { throw LibraryFailure.conflict }
             var entries: [PromptEntry] = []
-            for item in session.selected {
+            for item in session.confirmed {
                 guard let candidate = item.candidate else { throw GenerationFailure.invalidOutput }
                 try candidate.validate(categories: categories(), requiringDescriptions: false)
                 entries.append(try writeDraft(item.entry(source: session.source)))

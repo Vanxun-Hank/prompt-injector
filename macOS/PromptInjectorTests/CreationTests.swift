@@ -44,10 +44,12 @@ final class CreationTests: XCTestCase {
         let before = editor.value
         form.saveEditor()
         XCTAssertFalse(form.isSaving); XCTAssertEqual(editor.value, before)
-        XCTAssertTrue(form.root.requiredLabel.stringValue.contains("标题和 Prompt"))
+        XCTAssertFalse(editor.titleError.isHidden)
+        XCTAssertTrue(editor.titleError.stringValue.contains("标题"))
         XCTAssertTrue(try repository.managedSummaries(category: nil, query: "").isEmpty)
         editor.titleField.stringValue = "标题"; form.saveEditor()
         XCTAssertFalse(form.isSaving)
+        XCTAssertFalse(editor.promptError.isHidden)
         XCTAssertTrue(try repository.managedSummaries(category: nil, query: "").isEmpty)
     }
     @MainActor func testDuplicateClicksSaveOnceAndNewDraftRequiresExplicitAction() async throws {

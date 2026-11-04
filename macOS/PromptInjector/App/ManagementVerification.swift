@@ -19,14 +19,17 @@ extension AppDelegate {
         check("management/separate-native-window", window !== controller.window && window.styleMask.contains(.titled))
         let backdrop = NSWindow(contentRect: window.frame.insetBy(dx: -24, dy: -24), styleMask: [.borderless], backing: .buffered, defer: false)
         backdrop.backgroundColor = Theme.hex(0x242424)
-        func capture(_ name: String) async {
-            backdrop.setFrame(window.frame.insetBy(dx: -24, dy: -24), display: true); backdrop.orderFront(nil)
-            window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
-            window.contentView?.layoutSubtreeIfNeeded()
+        func capture(_ name: String, target: NSWindow? = nil) async {
+            if target == nil {
+                backdrop.setFrame(window.frame.insetBy(dx: -24, dy: -24), display: true); backdrop.orderFront(nil)
+                (window.attachedSheet ?? window).makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+            }
+            let captured = target ?? window
+            captured.contentView?.layoutSubtreeIfNeeded()
             try? await Task.sleep(nanoseconds: 180_000_000)
             let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
             // Capture this live window even if desktop activity changes stacking or position.
-            p.arguments = ["-x", "-o", "-l", String(window.windowNumber), output + "/" + name + ".png"]
+            p.arguments = ["-x", "-o", "-l", String(captured.windowNumber), output + "/" + name + ".png"]
             do { try p.run(); p.waitUntilExit(); check("capture/" + name, p.terminationStatus == 0) }
             catch { check("capture/" + name, false) }
         }
@@ -61,11 +64,26 @@ extension AppDelegate {
         check("management/initial-real-library", manager.root.libraryView.items.count == 7)
         check("assets/all-figma-assets-load", ["Logo", "Grid", "Chart", "Search", "Plus", "Down", "Copy", "Edit", "Check", "Back", "Close", "Insert", "Chevron", "Status", "Dot-requirements", "Dot-coding", "Dot-debugging", "Dot-review", "Dot-release", "MenuBar", "AppIcon"].allSatisfy { DesignAssets.image($0, template: false)?.size.width ?? 0 > 0 })
         await capture("management-library")
+        if let entry = manager.selectedEntry {
+            let alert = ManagementWindowController.deletionAlert(entry)
+            alert.beginSheetModal(for: window) { _ in }
+            await until { alert.buttons.allSatisfy(\.isEnabled) }
+            await capture("management-delete-confirmation")
+            check("management/delete-sheet-visible", alert.window.isVisible && window.attachedSheet === alert.window)
+            check("management/delete-default-is-cancel", alert.buttons[0].keyEquivalent == "\r" && alert.buttons[1].keyEquivalent.isEmpty && alert.window.initialFirstResponder === alert.buttons[0])
+            window.endSheet(alert.window, returnCode: .alertFirstButtonReturn); alert.window.orderOut(nil)
+            let comparison = ManagementWindowController.comparisonAlert(current: entry.prompt, proposed: entry.prompt + "\n仅在能够复现时先验证。")
+            comparison.beginSheetModal(for: window) { _ in }
+            await until { comparison.buttons.allSatisfy(\.isEnabled) }
+            await capture("management-comparison")
+            check("management/comparison-sheet-visible", comparison.window.isVisible && window.attachedSheet === comparison.window)
+            window.endSheet(comparison.window, returnCode: .alertFirstButtonReturn); comparison.window.orderOut(nil)
+        }
         manager.newEntry()
         await until { manager.root.editor != nil }
         guard let editor = manager.root.editor else { window.orderOut(nil); management = nil; return checks }
         manager.saveEditor()
-        check("management/required-fields", !manager.isSaving && manager.root.requiredLabel.stringValue.contains("标题和 Prompt"))
+        check("management/required-fields", !manager.isSaving && !editor.titleError.isHidden && editor.titleField.currentEditor() != nil)
         editor.titleField.stringValue = "原生 QA · 中文😀"
         editor.summaryText.text.string = "本地新增、重启、编辑与搜索验证"
         editor.sourceField.stringValue = "自动化验证数据"
@@ -163,9 +181,14 @@ extension AppDelegate {
             generationEditor.newCategoryField.stringValue = "学习与实验"
             check("generation/adoption-preserves-original-source", generationEditor.value.originalExperience == raw.originalExperience && generationEditor.value.source == raw.source)
             generationEditor.layoutSubtreeIfNeeded()
-            generationEditor.newCategoryField.scrollToVisible(generationEditor.newCategoryField.bounds)
-            if let box = generationEditor.newCategoryField.superview, let scroll = generationEditor.newCategoryField.enclosingScrollView, let doc = scroll.documentView {
-                check("categories/new-name-entire-control-visible", scroll.documentVisibleRect.contains(box.convert(box.bounds, to: doc)))
+            generationEditor.addCategory()
+            if let chooser = generationEditor.categoryChooser {
+                check("categories/new-name-entire-control-visible", chooser.view.bounds.contains(chooser.nameField.convert(chooser.nameField.bounds, to: chooser.view)))
+                chooser.nameField.stringValue = "  "; chooser.create()
+                check("categories/blank-name-stays-inline", chooser.popover.isShown && !chooser.errorLabel.stringValue.isEmpty)
+                await capture("management-category-create", target: chooser.view.window)
+                chooser.nameField.stringValue = "学习与实验"
+                chooser.createButton.performClick(nil)
             } else { check("categories/new-name-entire-control-visible", false) }
             await capture("management-new-category")
             manager.saveEditor()

@@ -34,13 +34,14 @@ struct GeneratedPrompt: Codable, Equatable {
 }
 
 enum GenerationFailure: Error, LocalizedError {
-    case missingKey, emptyExperience, emptyPrompt, nothingSelected, tooLong, invalidOutput, experienceBoundaries, fetchUnavailable, conversationTooLong, http(Int), keychain(Int32)
+    case missingKey, emptyExperience, emptyPrompt, nothingSelected, nothingConfirmed, tooLong, invalidOutput, experienceBoundaries, fetchUnavailable, conversationTooLong, http(Int), keychain(Int32)
     var errorDescription: String? {
         switch self {
         case .missingKey: return "请先配置 DeepSeek API key。"
         case .emptyExperience: return "请先粘贴原始经验。"
-        case .emptyPrompt: return "请先补齐已勾选条目的 Prompt。"
-        case .nothingSelected: return "请先勾选要保存的经验。"
+        case .emptyPrompt: return "请先填写 Prompt。"
+        case .nothingConfirmed: return "请先确认要保存的经验。"
+        case .nothingSelected: return "请先勾选要生成的经验。"
         case .tooLong: return "原始经验过长，请缩短后重试（最多 60,000 字）。"
         case .invalidOutput: return "整理结果不完整或格式无效，请重试。"
         case .experienceBoundaries: return "拆分结果未遵循原文条目或段落，请重试。原文已保留。"

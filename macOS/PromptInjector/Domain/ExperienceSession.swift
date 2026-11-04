@@ -17,6 +17,8 @@ struct ExperienceItem: Codable, Equatable {
     var input = ""
     var selected = false
     var candidate: GeneratedPrompt?
+    var suggestion: GeneratedPrompt?
+    var confirmed: Bool?
     var generatedMessageCount: Int?
 
     var needsGeneration: Bool { candidate == nil || generatedMessageCount != messages.count }
@@ -39,10 +41,11 @@ struct ExperienceSession: Codable, Equatable {
     var currentID: String?
     var current: ExperienceItem? { items.first { $0.id == currentID } }
     var selected: [ExperienceItem] { items.filter(\.selected) }
+    var confirmed: [ExperienceItem] { items.filter { $0.confirmed == true } }
     var remaining: Self {
         var next = self
-        next.items.removeAll(where: \.selected)
-        next.currentID = next.items.first?.id
+        next.items.removeAll { $0.confirmed == true }
+        if !next.items.contains(where: { $0.id == next.currentID }) { next.currentID = next.items.first?.id }
         if next.items.isEmpty { next.input = ""; next.raw = ""; next.source = ""; next.manualPrompt = nil }
         next.revision += 1
         return next

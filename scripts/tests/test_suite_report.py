@@ -21,7 +21,8 @@ class SuiteReportTests(unittest.TestCase):
                   'management/native-fullscreen-space','management/native-fullscreen-exit',
                   'management/regular-application','application/branded-icon','application/transparent-icon-canvas',
                   'keyboard/blocked-command-return-no-route','keyboard/recovered-command-return-routes']
-        names += ['capture/management-'+n for n in ['library','editor','original','save-error','statistics','minimum','candidate','new-category','sixth-statistics','reading-original','reading-explanation','categories-scroll']]
+        names += ['capture/management-'+n for n in ['library','editor','original','save-error','statistics','minimum','candidate','new-category','sixth-statistics','reading-original','reading-explanation','categories-scroll','delete-confirmation','comparison','category-create']]
+        names += ['categories/blank-name-stays-inline', 'management/delete-default-is-cancel', 'experience/confirm-action-visible']
         names += ['generation/candidate-is-editable', 'generation/candidate-does-not-overwrite', 'generation/adoption-preserves-original-source',
                   'categories/new-name-entire-control-visible', 'categories/sixth-sidebar-preview', 'categories/sixth-launcher-list', 'categories/sixth-launcher-full-prompt', 'categories/sixth-statistics']
         names += ['reading/prompt-only-verbatim', 'reading/original-source-verbatim', 'reading/explanation-only', 'categories/growing-sidebar-scroll']

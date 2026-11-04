@@ -106,6 +106,14 @@ Stage 4 才增加 PostgreSQL、版本、删除标记与同步游标。成功刷�
 
 ## v0.5 一键整理与独立 Prompt
 
-V6 替代上述 v0.4 聊天入口。ExperienceController 的选择、粘贴和审核均不调用模型；send 仅识别初始原文／链接，单条继续组织并审核，多条由 generateCurrent 明确生成。请求前落盘，使用最新分类；operationID、候选快照与取消状态防止迟到覆盖。旧消息／未发送输入仅保留为历史数据，新生成不传 discussion。
+V6 替代上述 v0.4 聊天入口。ExperienceController 的选择、粘贴和审核均不调用模型；v0.5.1 的 send 仅识别初始原文／链接，单／多条统一由 generateSelected 明确生成。请求前落盘，使用最新分类；operationID、候选快照与取消状态防止迟到覆盖。切换查看不取消另一条的生成。旧消息／未发送输入仅保留为历史数据，新生成不传 discussion。
 
 ExperienceSession 的可选 manualPrompt 保存未进入审核的手贴内容，兼容旧 JSON；进入审核后使用每条 candidate.prompt，退出排空包括原文为空的手贴草稿。生成 JSON 仍严格校验六字段与分类；保存时仅允许简述／解释为空，其他字段、长度、分类与事务校验继续执行。审核在 PromptEditorView 内左列表／右编辑，切换先 stashReview。
+
+## v0.5.1 管理交互修复
+
+分类＋搜索继续复用 SQLite 的 category_id 精确 AND 查询，不改 SQL。ManagementWindow 在新请求发出时清空旧卡片与详情，queryGeneration 和当前页面共同拒绝迟到结果；计数来自当前结果。
+
+CategoryPopover 复用于正式编辑器和候选编辑器，使用 transient NSPopover、原生表格键盘和字段旁新建表单。同名名称直接选已有 ID；新名称暂存 EditorDraft，正式提交时由 writeDraft 事务去重并创建，失败不留下孤立分类。详情删除采用紧凑 NSAlert，安全操作默认焦点。
+
+ExperienceItem 新增可选 confirmed 和 suggestion，仅扩展伴随库 JSON，不改 schema。selected 只控制批量生成；candidate 代表生成／手贴结果；confirmed 代表人工确认，任何候选修改使其失效。已有 Prompt 的新生成结果存 suggestion，明确采用且快照匹配才替换。旧 JSON 缺少 confirmed 时继续待确认。审核集合保留空 Prompt，列表按稳定 ID 切换，字段验证阻止空值确认。saveExperiences 只提交 confirmed，事务内归档并写 remaining；当前 ID 有效则保留，已保存条目移除，分母来自剩余数组。

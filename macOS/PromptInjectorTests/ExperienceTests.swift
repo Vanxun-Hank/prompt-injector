@@ -97,7 +97,7 @@ final class ExperienceTests: XCTestCase {
         let legacy = try XCTUnwrap(PromptSeed.entries().first); try repo.storeDraft(legacy, original: legacy)
         try repo.recordUsage(legacy, kind: .insert, date: Date())
         var s = session(); s.revision = 4
-        for i in s.items.indices { s.items[i].selected = true; s.items[i].candidate = candidate("第\(i)条", name: i == 0 ? " 模型方法 " : "模型方法"); s.items[i].input = "未发送问题" }
+        for i in s.items.indices { s.items[i].selected = true; s.items[i].confirmed = true; s.items[i].candidate = candidate("第\(i)条", name: i == 0 ? " 模型方法 " : "模型方法"); s.items[i].input = "未发送问题" }
         try repo.storeExperienceDraft(s)
         var db: OpaquePointer?; XCTAssertEqual(sqlite3_open(dir.appendingPathComponent("library.sqlite3").path, &db), SQLITE_OK)
         defer { sqlite3_close(db) }
@@ -121,7 +121,7 @@ final class ExperienceTests: XCTestCase {
     }
     func testPartialBatchRetainsUncheckedDiscussionAndRejectsStaleDraft() throws {
         let (dir, repo) = repository(); defer { try? FileManager.default.removeItem(at: dir) }
-        var s = session(); s.items[0].selected = true; s.items[0].candidate = candidate()
+        var s = session(); s.items[0].selected = true; s.items[0].confirmed = true; s.items[0].candidate = candidate()
         s.items[1].input = "尚未发出的理解"; s.items[1].messages = [.init(role: .user, content: "这句话是什么意思？")]
         try repo.storeExperienceDraft(s); _ = try repo.saveExperiences(s)
         XCTAssertEqual(try repo.experienceDraft(), s.remaining)
@@ -155,8 +155,6 @@ final class ExperienceTests: XCTestCase {
         XCTAssertEqual(try reopened.experienceDraft()?.source, draft.source)
         model.send(); try await until { service.identifyCalls.count == 2 }
         service.identifyCalls[1].1.resume(returning: [.init(title: "保留整条经验", original: draft.input)])
-        try await until { service.organizeCalls.count == 1 }
-        service.organizeCalls[0].2.resume(returning: candidate())
         try await until { !model.busy }; try await model.finish()
         XCTAssertEqual(model.session.items.count, 1); XCTAssertEqual(model.session.items[0].original, draft.input)
         XCTAssertEqual(try reopened.experienceDraft()?.source, draft.source)
@@ -179,15 +177,17 @@ final class ExperienceTests: XCTestCase {
         model.changePrompt("请求中手工粘贴")
         service.organizeCalls[0].2.resume(returning: candidate("迟到")); try await Task.sleep(nanoseconds: 30_000_000)
         XCTAssertEqual(model.current?.candidate?.prompt, "请求中手工粘贴"); XCTAssertFalse(model.busy)
-        model.confirmReplacement = { false }; model.generateCurrent(); XCTAssertEqual(service.organizeCalls.count, 1)
         _ = try repo.saveDraft(EditorDraft(entry: GenerationTests().entry(), original: nil, newCategoryName: "模型选择"))
-        model.confirmReplacement = { true }; model.generateCurrent(); try await until { service.organizeCalls.count == 2 }
+        model.generateCurrent(); try await until { service.organizeCalls.count == 2 }
         XCTAssertEqual(service.organizeCalls[1].1.last?.name, "模型选择")
         service.organizeCalls[1].2.resume(throwing: URLError(.timedOut)); try await until { !model.busy }
         XCTAssertTrue(model.status.contains("超时")); XCTAssertEqual(model.current?.candidate?.prompt, "请求中手工粘贴")
         model.generateCurrent(); try await until { service.organizeCalls.count == 3 }
         service.organizeCalls[2].2.resume(returning: candidate("重试成功")); try await until { !model.busy }
-        XCTAssertEqual(model.current?.candidate?.title, "重试成功"); try await model.finish()
+        XCTAssertEqual(model.current?.candidate?.prompt, "请求中手工粘贴")
+        let suggestion = try XCTUnwrap(model.current?.suggestion)
+        model.adoptSuggestion(model.current!.id, suggestion)
+        XCTAssertEqual(model.current?.candidate?.title, "重试成功"); XCTAssertNil(model.current?.suggestion); try await model.finish()
     }
     @MainActor func testManualEntryAndReviewGateNeedNoModel() async throws {
         let (dir, repo) = repository(); defer { try? FileManager.default.removeItem(at: dir) }
@@ -199,7 +199,7 @@ final class ExperienceTests: XCTestCase {
         XCTAssertEqual(try repo.experienceDraft()?.manualPrompt, "用户自己的指令")
         model.continueManual(); XCTAssertEqual(reviews, 1)
         XCTAssertEqual(model.current?.original, "完整作者原文"); XCTAssertEqual(model.current?.candidate?.prompt, "用户自己的指令")
-        model.toggle(model.current!.id); model.organize(); XCTAssertEqual(reviews, 1)
+        model.toggle(model.current!.id); model.generateSelected(); XCTAssertEqual(reviews, 1)
         model.toggle(model.current!.id); model.changePrompt("  "); model.organize(); XCTAssertEqual(reviews, 1)
         XCTAssertTrue(service.identifyCalls.isEmpty); XCTAssertTrue(service.discussionCalls.isEmpty); XCTAssertTrue(service.organizeCalls.isEmpty)
     }
@@ -240,22 +240,25 @@ final class ExperienceTests: XCTestCase {
         XCTAssertEqual(try reopened.experienceDraft()?.manualPrompt, "先粘贴 Prompt，原文稍后填写")
         XCTAssertEqual(try reopened.experienceDraft()?.input, "")
     }
-    @MainActor func testSingleOneClickGeneratesAndOpensReviewWithExactSource() async throws {
+    @MainActor func testSingleIdentificationWaitsForExplicitGenerationWithExactSource() async throws {
         let (dir, repo) = repository(); defer { try? FileManager.default.removeItem(at: dir) }
         let service = ControlledExperienceService(), model = ExperienceController(session: ExperienceSession(), library: PromptLibrary(repository: repo), service: service)
         model.changeInput("只是一条完整经验。"); model.changeSource("作者来源")
         var reviews = 0; model.onReview = { reviews += 1 }
         model.send(); try await until { service.identifyCalls.count == 1 }
         service.identifyCalls[0].1.resume(returning: [.init(title: "一条经验", original: "只是一条完整经验。")])
+        try await until { !model.busy }; XCTAssertTrue(service.organizeCalls.isEmpty)
+        model.toggle(model.current!.id); model.generateSelected()
         try await until { service.organizeCalls.count == 1 }
         service.organizeCalls[0].2.resume(returning: candidate()); try await until { !model.busy }
+        XCTAssertEqual(reviews, 0); model.organize()
         XCTAssertEqual(reviews, 1); XCTAssertEqual(model.reviewItems.count, 1)
         XCTAssertEqual(model.current?.original, "只是一条完整经验。"); XCTAssertEqual(model.session.source, "作者来源")
         XCTAssertTrue(service.discussionCalls.isEmpty); try await model.finish()
     }
     func testPastedPromptCanSaveWithOptionalDescriptionsEmptyAndRequiredFieldsStillValidated() throws {
         let (dir, repo) = repository(); defer { try? FileManager.default.removeItem(at: dir) }
-        var s = session(); s.items[0].selected = true
+        var s = session(); s.items[0].selected = true; s.items[0].confirmed = true
         s.items[0].candidate = GeneratedPrompt(title: "手填条目", summary: "", explanation: "", prompt: "用户指令", categoryID: "coding", newCategoryName: nil)
         XCTAssertThrowsError(try s.items[0].candidate!.validate(categories: repo.categories()))
         try repo.storeExperienceDraft(s); let saved = try repo.saveExperiences(s)
@@ -276,6 +279,54 @@ final class ExperienceTests: XCTestCase {
         var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(s)) as! [String: Any]
         object.removeValue(forKey: "manualPrompt")
         XCTAssertNil(try JSONDecoder().decode(ExperienceSession.self, from: JSONSerialization.data(withJSONObject: object)).manualPrompt)
+    }
+    @MainActor func testSelectionConfirmationAndPartialSaveStaySeparateForOneFiveAndTwenty() async throws {
+        for count in [1, 5, 20] {
+            let (dir, repo) = repository(); defer { try? FileManager.default.removeItem(at: dir) }
+            var s = ExperienceSession(); s.raw = (0..<count).map { "原文\($0)。" }.joined(separator: "\n"); s.source = "来源保持原样"
+            s.items = (0..<count).map { i in ExperienceItem(title: "经验\(i)", original: "原文\(i)。") }
+            s.currentID = s.items[0].id
+            let service = ControlledExperienceService()
+            let model = ExperienceController(session: s, library: PromptLibrary(repository: repo), service: service)
+            s.items.forEach { model.toggle($0.id) }; model.generateSelected()
+            for i in 0..<count {
+                try await until { service.organizeCalls.count == i + 1 }
+                service.organizeCalls[i].2.resume(returning: candidate("待确认\(i)"))
+            }
+            try await until { !model.busy }
+            XCTAssertEqual(model.reviewItems.count, count); XCTAssertTrue(model.session.confirmed.isEmpty)
+            XCTAssertEqual(model.session.items.map(\.original), s.items.map(\.original))
+            s.items.forEach { model.toggle($0.id) }
+            model.toggle(s.items[0].id); XCTAssertTrue(model.session.confirmed.isEmpty)
+            model.save(); XCTAssertTrue(model.status.contains("确认")); XCTAssertEqual(model.session.items.count, count)
+            model.confirm(s.items[0].id); XCTAssertEqual(model.session.confirmed.count, 1)
+            if count > 1 { model.choose(s.items[1].id) }
+            model.save(); try await until { !model.saving }
+            XCTAssertEqual(model.session.items.count, count - 1); XCTAssertTrue(model.session.selected.isEmpty)
+            XCTAssertEqual(try repo.managedSummaries(category: "coding", query: "待确认0").count, 1)
+            if count > 1 {
+                XCTAssertEqual(model.current?.id, s.items[1].id)
+                XCTAssertEqual(try repo.experienceDraft()?.items.count, count - 1)
+                XCTAssertEqual(try repo.experienceDraft()?.source, s.source)
+            } else { XCTAssertNil(try repo.experienceDraft()); XCTAssertNil(model.current) }
+        }
+    }
+    @MainActor func testEditingConfirmedAndKeepingOrAdoptingSuggestionNeverOverwritesNewerWork() async throws {
+        let (dir, repo) = repository(); defer { try? FileManager.default.removeItem(at: dir) }
+        var s = session(); s.items[0].candidate = candidate(); let id = s.items[0].id
+        let service = ControlledExperienceService(), model = ExperienceController(session: s, library: PromptLibrary(repository: repo), service: service)
+        model.confirm(id); XCTAssertEqual(model.session.confirmed.count, 1)
+        model.generateCurrent(); try await until { service.organizeCalls.count == 1 }
+        model.choose(s.items[1].id)
+        service.organizeCalls[0].2.resume(returning: candidate("AI 新建议")); try await until { !model.busy }
+        XCTAssertEqual(model.session.items[0].candidate?.title, s.items[0].candidate?.title)
+        XCTAssertEqual(model.session.items[0].suggestion?.title, "AI 新建议")
+        model.choose(id); model.keepCurrent(id); XCTAssertNil(model.current?.suggestion); XCTAssertEqual(model.session.confirmed.count, 1)
+        model.generateCurrent(); try await until { service.organizeCalls.count == 2 }
+        let newer = candidate("待采用"); service.organizeCalls[1].2.resume(returning: newer); try await until { !model.busy }
+        model.changePrompt("后来的手工修改"); model.adoptSuggestion(id, newer)
+        XCTAssertEqual(model.current?.candidate?.prompt, "后来的手工修改"); XCTAssertTrue(model.session.confirmed.isEmpty)
+        try await model.finish(); XCTAssertEqual(try repo.experienceDraft()?.items[0].candidate?.prompt, "后来的手工修改")
     }
     func testMultilineAndUnknownFetchFormatsPreserveAllOriginalText() throws {
         let url = URL(string: "https://x.com/author/status/1")!

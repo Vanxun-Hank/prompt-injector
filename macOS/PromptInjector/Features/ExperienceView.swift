@@ -36,18 +36,20 @@ final class ExperienceCheckbox: NSButton {
 
 final class ExperienceRowCell: NSTableCellView {
     let checkbox = ExperienceCheckbox(frame: .zero)
+    let stateLabel = Theme.label(size: 11, color: Theme.secondary)
     let discuss = ActionButton(title: "", symbol: nil, target: nil, action: nil)
     var active = false { didSet { needsDisplay = true } }
     override var isFlipped: Bool { true }
     override init(frame: NSRect) {
-        super.init(frame: frame); addSubview(checkbox); addSubview(discuss)
+        super.init(frame: frame); addSubview(checkbox); addSubview(discuss); addSubview(stateLabel)
         discuss.alignment = .left; discuss.font = .systemFont(ofSize: 15)
         discuss.cell?.wraps = true; discuss.cell?.lineBreakMode = .byTruncatingTail
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override func layout() {
         super.layout(); checkbox.frame = NSRect(x: 4, y: 4, width: 44, height: 44)
-        discuss.frame = NSRect(x: 48, y: 4, width: bounds.width - 60, height: 44)
+        discuss.frame = NSRect(x: 48, y: 4, width: bounds.width - 60, height: 28)
+        stateLabel.frame = NSRect(x: 60, y: 34, width: bounds.width - 72, height: 18)
     }
     override func draw(_ dirtyRect: NSRect) {
         if active { Theme.selection.setFill(); NSBezierPath(roundedRect: bounds, xRadius: 10, yRadius: 10).fill() }
@@ -73,7 +75,7 @@ final class ExperienceRowCell: NSTableCellView {
     let count = Theme.label(size: 17, weight: .medium)
     let selectedCount = Theme.label(size: 13, color: Theme.secondary)
     let listScroll = NSScrollView(), table = NSTableView()
-    let organize = ActionButton(title: "审核已勾选", symbol: nil, primary: true, target: nil, action: nil)
+    let organize = ActionButton(title: "审核生成结果", symbol: nil, primary: true, target: nil, action: nil)
     private let originalScroll = NSScrollView(), original = TextDocument()
     private let rule = SurfaceView(color: Theme.border, radius: 0, border: nil)
     private var displayedID: String?
@@ -92,7 +94,7 @@ final class ExperienceRowCell: NSTableCellView {
         originalScroll.drawsBackground = false; originalScroll.hasVerticalScroller = true
         originalScroll.scrollerStyle = .overlay; originalScroll.documentView = original
         table.addTableColumn(NSTableColumn(identifier: .init("experience"))); table.headerView = nil; table.style = .plain
-        table.backgroundColor = .clear; table.rowHeight = 52; table.intercellSpacing = NSSize(width: 0, height: 4)
+        table.backgroundColor = .clear; table.rowHeight = 64; table.intercellSpacing = NSSize(width: 0, height: 4)
         table.selectionHighlightStyle = .none; table.dataSource = self; table.delegate = self
         listScroll.drawsBackground = false; listScroll.hasVerticalScroller = true; listScroll.scrollerStyle = .overlay; listScroll.documentView = table
         status.maximumNumberOfLines = 2; status.lineBreakMode = .byWordWrapping
@@ -103,7 +105,7 @@ final class ExperienceRowCell: NSTableCellView {
         }
         manual.onPress = { [weak controller] in controller?.beginManual() }
         cancel.onPress = { [weak controller] in controller?.cancel() }
-        generate.onPress = { [weak controller] in controller?.generateCurrent() }
+        generate.onPress = { [weak controller] in controller?.generateSelected() }
         organize.onPress = { [weak controller] in controller?.organize() }
         configure.onPress = { [weak self] in self?.onConfigure?() }
         source.onPress = { [weak controller] in
@@ -123,7 +125,8 @@ final class ExperienceRowCell: NSTableCellView {
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let item = controller.session.items[row], cell = ExperienceRowCell()
         cell.checkbox.checked = item.selected; cell.checkbox.isEnabled = !controller.saving
-        cell.checkbox.setAccessibilityLabel("勾选经验：" + item.title)
+        cell.checkbox.setAccessibilityLabel("选择用于生成：" + item.title)
+        cell.stateLabel.stringValue = controller.activeItemID == item.id ? "生成中" : controller.failedItemID == item.id ? "失败，可重试" : item.confirmed == true ? "已确认" : item.suggestion != nil ? "有新建议" : item.candidate?.prompt.isEmpty == false ? "待确认" : "未生成"
         cell.discuss.title = "\(row + 1). " + item.title; cell.discuss.toolTip = item.title; cell.active = controller.session.currentID == item.id
         cell.discuss.setAccessibilityLabel("查看经验：" + item.title); cell.discuss.isEnabled = !controller.saving
         cell.checkbox.onPress = { [weak controller] in controller?.toggle(item.id) }
@@ -150,11 +153,12 @@ final class ExperienceRowCell: NSTableCellView {
         SourceBadge.set(source, source: session.source)
         source.isEnabled = SourceLink.inSource(session.source) != nil
         [promptHeading, prompt].forEach { $0.isHidden = initial && !manualMode }
+        generate.title = "生成所选"
         generate.isHidden = initial; send.isHidden = !initial; manual.isHidden = !initial || manualMode
         rule.isHidden = initial
         send.title = manualMode ? "继续审核" : "整理"
         count.stringValue = "识别出 \(session.items.count) 条经验"
-        selectedCount.stringValue = "已勾选 \(session.selected.count) / \(session.items.count)"
+        selectedCount.stringValue = "生成选择 \(session.selected.count) / \(session.items.count) · 已确认 \(session.confirmed.count)"
         status.stringValue = controller.status; status.textColor = controller.failed ? Theme.error : Theme.secondary
         status.toolTip = controller.status
         table.reloadData()
