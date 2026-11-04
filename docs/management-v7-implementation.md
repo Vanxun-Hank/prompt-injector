@@ -42,3 +42,5 @@ python3 scripts/verify-management-v7.py
 同一签名包已安装到 `~/Library/Application Support/Prompt Injector/Build/Prompt Injector.app` 并实际打开；PID71851、v0.6.0、build20261104T041900Z及源码指纹与报告一致，安装前后逐文件摘要相同。打开内容管理并恢复原有3条草稿，没有生成、手改或正式保存。两库所有用户表的规范化字段摘要与安装前备份一致：正式Prompt0、分类7、使用事件5、经验草稿1；没有复活旧内容或填入测试夹具。证据 `artifacts/installation/v060/report.json` 与 `installed-app.png`。
 
 安装前 v0.5.1 App 与两库备份：`~/Library/Application Support/Prompt Injector/Backups/before-v060-20261104T041802Z/`。运行中的新包需先正常退出，再用该目录的旧 App 回退；若恢复资料，按上节成对恢复两库并先备份后续修改。Keychain 没有改动。
+
+后续本机安装位置已迁至 `/Applications/Prompt Injector.app`，原开发入口指向同一包；迁移、重新启动和回滚记录见 [Applications 安装](applications-installation.md)。本文上方 PID71851 是移植当时的历史验收，不是迁移后的运行实例。

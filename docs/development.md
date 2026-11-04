@@ -103,6 +103,8 @@ bash scripts/build-app.sh
 
 ## 常用安装包交付检查 · 2026-11-02
 
+当前入口已于 2026-11-04 改为 `/Applications/Prompt Injector.app`，可在 Finder 的「应用程序」中打开。原 `~/Library/Application Support/Prompt Injector/Build/Prompt Injector.app` 是指向该包的符号链接，避免两个常用副本各自变旧。下文开发目录安装记录保留作历史；后续交付核对 `/Applications` 的实际进程与构建身份。完整安装、数据验证和恢复步骤见 [Applications 安装记录](applications-installation.md)。
+
 独立审查包通过和打开，不代表常用安装位置已更新。此次用户重开后运行的仍是 `~/Library/Application Support/Prompt Injector/Build/Prompt Injector.app` 的 v0.2.0（20261030T162750Z），而 v0.3.1 只在 Reading-V2-Review。
 
 完成已授权的本机更新时：正常退出旧进程并等待队列排空；成对备份两库和旧包；把通过回归的同一签名包暂存并验证，再替换常用路径。从该路径重新打开后，同时核对实际 PID 路径、app.started 的版本／build ID／源码指纹、签名及原生窗口。仅 `build/Prompt Injector.app` 链接或“已打开审查包”不算常用安装交付。
