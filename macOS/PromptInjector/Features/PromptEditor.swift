@@ -34,6 +34,13 @@ final class EditorText: SurfaceView {
     private var settingReviewSelection = false
     private var editingEnabled = true
     let reviewMode: Bool
+    let inlineMode: Bool, workbenchMode: Bool
+    var inlineActions: (cancel: ActionButton, save: ActionButton, feedback: NSTextField)?
+    private(set) var originalExpanded = false
+    let originalToggle = ActionButton(title: "作者原文", symbol: "chevron.down", target: nil, action: nil)
+    let sourceBadge = ActionButton(title: "", symbol: nil, target: nil, action: nil)
+    private let originalBand = SurfaceView(color: Theme.panel, radius: 9, border: nil)
+    private let originalExcerpt = Theme.label(size: 12, color: Theme.secondary)
     let previousButton = ActionButton(title: "上一条", symbol: nil, target: nil, action: nil)
     let nextButton = ActionButton(title: "下一条", symbol: nil, target: nil, action: nil)
     var onChange: (() -> Void)?
@@ -72,9 +79,9 @@ final class EditorText: SurfaceView {
     private let originalLabel = Theme.label("原始经验", size: 14, weight: .medium)
     private let explanationLabel = Theme.label("解释", size: 14, weight: .medium)
     private let explanationRule = SurfaceView(color: Theme.border, radius: 0, border: nil)
-    init(draft: EditorDraft, categories: [PromptCategory] = [], reviewMode: Bool = false) {
-        self.reviewMode = reviewMode
-        segments = ChoiceSegments(reviewMode ? ["Prompt", "作者原文", "整理说明"] : ["Prompt", "原始经验与解释", "整理候选"])
+    init(draft: EditorDraft, categories: [PromptCategory] = [], reviewMode: Bool = false, inlineMode: Bool = false, workbenchMode: Bool = false) {
+        self.reviewMode = reviewMode; self.inlineMode = inlineMode; self.workbenchMode = workbenchMode
+        segments = ChoiceSegments(workbenchMode ? ["Prompt", "整理说明"] : (reviewMode || inlineMode) ? ["Prompt", "作者原文", "整理说明"] : ["Prompt", "原始经验与解释", "整理候选"])
         self.categories = categories; creatingCategory = draft.newCategoryName != nil
         id = draft.entry.id; category = draft.entry.categoryID; original = draft.original
         summaryText = EditorText(draft.entry.summary, label: "简述", size: 13)
@@ -127,6 +134,27 @@ final class EditorText: SurfaceView {
             reviewListScroll.documentView = reviewList; reviewListScroll.drawsBackground = false
             reviewListScroll.hasVerticalScroller = true; reviewListScroll.scrollerStyle = .overlay
         }
+        if inlineMode || workbenchMode {
+            [labels[0], labels[1], labels[2], titleBox, categoryBox, summaryText, sourceBox, titleError, categoryError, generateButton].forEach(content.addSubview)
+            labels[0].stringValue = "标题"; content.layer?.borderColor = Theme.border.cgColor
+            content.addSubview(originalBand)
+            [originalToggle, sourceBadge, originalExcerpt].forEach(originalBand.addSubview)
+            originalToggle.alignment = .left; originalToggle.font = .systemFont(ofSize: 12)
+            originalToggle.imagePosition = .imageTrailing
+            originalToggle.onPress = { [weak self] in
+                guard let self else { return }; self.originalExpanded.toggle()
+                self.originalToggle.setAccessibilityExpanded(self.originalExpanded)
+                PageTransition.fade(self.content, duration: 0.12); self.needsLayout = true
+            }
+            originalExcerpt.stringValue = draft.entry.originalExperience.replacingOccurrences(of: "\n", with: " ")
+            SourceBadge.set(sourceBadge, source: draft.entry.source)
+            sourceBadge.alignment = .left; sourceBadge.font = .systemFont(ofSize: 12)
+            sourceBadge.onPress = { if let url = SourceLink.inSource(draft.entry.source) { NSWorkspace.shared.open(url) } }
+            sourceBadge.isEnabled = SourceLink.inSource(draft.entry.source) != nil
+            categoryButton.cell?.wraps = false; categoryButton.cell?.lineBreakMode = .byTruncatingTail
+            if workbenchMode { originalText.text.isEditable = false; sourceField.isEditable = false }
+            if workbenchMode { content.addSubview(reviewOriginalScroll) }
+        }
         sourceField.maximumNumberOfLines = 1; sourceField.lineBreakMode = .byTruncatingTail; sourceField.cell?.wraps = false
         sourceField.toolTip = draft.entry.source; clearValidation()
     }
@@ -142,10 +170,10 @@ final class EditorText: SurfaceView {
     func markSaved(_ entry: PromptEntry) { original = entry }
     func setEditingEnabled(_ enabled: Bool) {
         editingEnabled = enabled
-        titleField.isEditable = enabled; sourceField.isEditable = enabled && !reviewMode; categoryButton.isEnabled = enabled; newCategoryField.isEditable = enabled
+        titleField.isEditable = enabled; sourceField.isEditable = enabled && !reviewMode && !workbenchMode; categoryButton.isEnabled = enabled; newCategoryField.isEditable = enabled
         generateButton.isEnabled = enabled; configureButton.isEnabled = enabled; adoptButton.isEnabled = enabled && candidate != nil; candidateEditor.setEditingEnabled(enabled)
         [summaryText, promptText, originalText, explanationText].forEach { $0.text.isEditable = enabled }
-        if reviewMode { originalText.text.isEditable = false }
+        if reviewMode || workbenchMode { originalText.text.isEditable = false }
         previousButton.isEnabled = enabled && reviewIndex > 0; nextButton.isEnabled = enabled
     }
     func clearValidation() {
@@ -200,8 +228,9 @@ final class EditorText: SurfaceView {
         onReviewSelect?(reviewItems[reviewList.selectedRow].id)
     }
     private func updateCategory() {
-        categoryButton.title = creatingCategory ? (newCategoryField.stringValue + "（新）") : Theme.categoryName(category, in: categories)
-        dot?.removeFromSuperview(); let next = CategoryDot(category: category, categories: categories); categoryBox.addSubview(next); dot = next
+        categoryButton.title = creatingCategory ? (newCategoryField.stringValue + "（新）") : category.isEmpty ? "选择分类" : Theme.categoryName(category, in: categories)
+        let colors = creatingCategory ? categories + [.init(id: "", name: newCategoryField.stringValue, symbol: "folder")] : categories
+        dot?.removeFromSuperview(); let next = CategoryDot(category: creatingCategory ? "" : category, categories: colors); categoryBox.addSubview(next); dot = next
         needsLayout = true
     }
     private func chooseCategory() {
@@ -220,10 +249,12 @@ final class EditorText: SurfaceView {
     }
     func setCategories(_ values: [PromptCategory]) { categories = values; candidateEditor.setCategories(values); updateCategory(); showCandidate() }
     func receiveCandidate(_ value: GeneratedPrompt) {
-        candidateEditor.set(value); segments.selectedIndex = 2; showCandidate(); onChange?()
+        candidateEditor.set(value); if !inlineMode { segments.selectedIndex = 2 }; showCandidate(); onChange?()
     }
+    func discardCandidate() { candidateEditor.set(nil); showCandidate(); onChange?() }
     private func showCandidate() {
         adoptButton.isEnabled = candidate != nil; needsLayout = true
+        if inlineMode { generateButton.title = candidate == nil ? "重新生成" : "查看新建议" }
     }
     func adoptCandidate() {
         guard let candidate, candidateEditor.validateFields() else { return }
@@ -240,6 +271,8 @@ final class EditorText: SurfaceView {
         DiagnosticLog.shared.write(.candidateAdopted, fields: .init(stage: "explicit-adoption")); onChange?()
     }
     override func layout() {
+        guard bounds.width > 0, bounds.height > 0 else { return }
+        if inlineMode || workbenchMode { layoutCompact(); return }
         super.layout(); let iw: CGFloat = bounds.width >= 1100 ? (reviewMode ? 352 : 380) : 320, cw = bounds.width - iw - 20, h = bounds.height
         info.frame = NSRect(x: 0, y: 0, width: iw, height: h); content.frame = NSRect(x: iw + 20, y: 0, width: cw, height: h)
         infoScroll.frame = NSRect(x: 1, y: 1, width: iw - 2, height: max(0, h - 80)); infoBody.frame = NSRect(x: 0, y: 0, width: iw - 2, height: max(h - 80, creatingCategory ? 566 : 478))
@@ -330,6 +363,67 @@ final class EditorText: SurfaceView {
         if !promptError.isHidden {
             promptError.frame = NSRect(x: promptText.frame.minX + 12, y: promptText.frame.maxY - 18, width: promptText.frame.width - 24, height: 18)
             promptText.frame.size.height -= 24
+        }
+    }
+    private func layoutCompact() {
+        super.layout(); let w = bounds.width, h = bounds.height
+        info.isHidden = true; content.frame = bounds
+        let categoryWidth = min(208, w * 0.30), titleWidth = w - categoryWidth - 64
+        labels[0].frame = NSRect(x: 24, y: 22, width: titleWidth, height: 18)
+        titleBox.frame = NSRect(x: 24, y: 48, width: titleWidth, height: 44)
+        Theme.placeLine(titleField, in: NSRect(x: 12, y: 0, width: titleWidth - 24, height: 44), stableBaseline: true)
+        labels[1].frame = NSRect(x: w - categoryWidth - 24, y: 22, width: categoryWidth, height: 18)
+        categoryBox.frame = NSRect(x: w - categoryWidth - 24, y: 48, width: categoryWidth, height: 44)
+        dot?.frame = NSRect(x: 12, y: 18, width: 7, height: 7)
+        categoryButton.frame = NSRect(x: 25, y: 5, width: categoryWidth - 50, height: 34)
+        categoryArrow.frame = NSRect(x: categoryWidth - 24, y: 14, width: 16, height: 16)
+        titleError.frame = NSRect(x: 24, y: 94, width: titleWidth, height: 18)
+        categoryError.frame = NSRect(x: w - categoryWidth - 24, y: 94, width: categoryWidth, height: 18)
+        let gap: CGFloat = titleError.isHidden && categoryError.isHidden ? 0 : 22
+        labels[2].frame = NSRect(x: 24, y: 108 + gap, width: w - 48, height: 18)
+        summaryText.frame = NSRect(x: 24, y: 132 + gap, width: w - 48, height: 44)
+        var tabsY: CGFloat = 196 + gap
+        originalBand.isHidden = !workbenchMode
+        if workbenchMode {
+            let extra: CGFloat = originalExpanded ? min(180, max(0, h - 440 - gap)) : 0
+            originalBand.frame = NSRect(x: 24, y: tabsY, width: w - 48, height: 64 + extra)
+            originalToggle.frame = NSRect(x: 8, y: 2, width: originalBand.bounds.width - 16, height: 32)
+            sourceBadge.frame = NSRect(x: 104, y: 2, width: min(250, w - 190), height: 32)
+            sourceBadge.isHidden = sourceField.stringValue.isEmpty
+            originalExcerpt.isHidden = originalExpanded
+            originalExcerpt.frame = NSRect(x: 12, y: 36, width: w - 72, height: 20)
+            reviewOriginalScroll.isHidden = !originalExpanded
+            reviewOriginalScroll.frame = NSRect(x: 36, y: tabsY + 36, width: w - 72, height: extra + 20)
+            reviewOriginal.arrange(width: reviewOriginalScroll.contentSize.width)
+            tabsY = originalBand.frame.maxY + 12
+        }
+        segments.frame = NSRect(x: 24, y: tabsY, width: min(workbenchMode ? 220 : 344, w - 208), height: 36)
+        generateButton.isHidden = false
+        generateButton.frame = NSRect(x: w - 160, y: tabsY, width: 136, height: 36)
+        generateButton.primary = false; generateButton.outlined = true
+        [configureButton, previousButton, nextButton, newCategoryBox, newCategoryLabel, promptLabel, originalLabel, explanationLabel, explanationRule, contentRule, candidateEditor, adoptButton].forEach { $0.isHidden = true }
+        let textY = tabsY + 48, bottom: CGFloat = inlineMode ? 80 : 20
+        let textFrame = NSRect(x: 24, y: textY, width: w - 48, height: max(80, h - textY - bottom))
+        [promptText, originalText, explanationText].forEach { $0.frame = textFrame; $0.layer?.borderWidth = 1; $0.layer?.borderColor = Theme.border.cgColor }
+        promptText.isHidden = segments.selectedIndex != 0
+        originalText.isHidden = workbenchMode || segments.selectedIndex != 1
+        explanationText.isHidden = segments.selectedIndex != (workbenchMode ? 1 : 2)
+        sourceBox.isHidden = workbenchMode || segments.selectedIndex != 1
+        if !workbenchMode {
+            reviewOriginalScroll.isHidden = true
+            sourceBox.frame = NSRect(x: 24, y: textY, width: w - 48, height: 36)
+            sourceIcon.frame = NSRect(x: 12, y: 10, width: 16, height: 16)
+            Theme.placeLine(sourceField, in: NSRect(x: 40, y: 0, width: w - 100, height: 36), stableBaseline: true)
+            originalText.frame.origin.y += 48; originalText.frame.size.height -= 48
+        }
+        if !promptError.isHidden {
+            promptText.frame.size.height -= 24
+            promptError.frame = NSRect(x: 24, y: promptText.frame.maxY + 4, width: w - 48, height: 18)
+        }
+        if let actions = inlineActions {
+            actions.cancel.frame = NSRect(x: 24, y: h - 56, width: 80, height: 40)
+            actions.save.frame = NSRect(x: 116, y: h - 56, width: 128, height: 40)
+            actions.feedback.frame = NSRect(x: 260, y: h - 56, width: max(80, w - 284), height: 40)
         }
     }
 }

@@ -41,9 +41,15 @@ def validate_ui_report(report):
                 'capture/experience-review-minimum', 'capture/experience-new', 'capture/experience-manual', 'capture/experience-manual-minimum', 'capture/experience-organize', 'capture/experience-minimum', 'capture/experience-review', 'capture/experience-original',
                 'capture/management-candidate', 'capture/management-new-category', 'capture/management-sixth-statistics',
                 'capture/management-delete-confirmation', 'capture/management-comparison', 'capture/management-category-create',
-                'categories/blank-name-stays-inline', 'management/delete-default-is-cancel', 'experience/confirm-action-visible'}
+                'categories/blank-name-stays-inline', 'management/delete-default-is-cancel', 'experience/confirm-action-visible',
+                'v7/grid-default-and-three-columns', 'v7/grid-minimum-two-columns', 'v7/edit-stays-in-preview', 'v7/inline-minimum-fields-fit',
+                'v7/unified-workbench', 'v7/all-saved-without-resurrected-input', 'v7/saved-card-immediately-available',
+                'v7/partial-save-1', 'v7/partial-save-5', 'v7/partial-save-20', 'v7/completed-one', 'v7/remaining-draft-5', 'v7/remaining-draft-20',
+                'capture/management-inline-editor', 'capture/management-inline-minimum', 'capture/management-grid-minimum',
+                'capture/v7-partial-1', 'capture/v7-partial-5', 'capture/v7-partial-20',
+                'v7/input-validation-near-field', 'v7/input-mode-retains-prompt', 'capture/experience-input-error'}
     captures = [c for c in checks if str(c.get('name', '')).startswith('capture/')]
-    return (report.get('passed') is True and len(checks) >= 85 and len(captures) == 36
+    return (report.get('passed') is True and len(checks) >= 85 and len(captures) == 43
             and required <= names and all(c.get('passed') is True for c in checks))
 
 def main():

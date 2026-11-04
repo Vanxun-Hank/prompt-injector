@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-02T16:29:46Z",
+  "generatedAt": "2026-11-04T04:25:41Z",
   "title": "Design System: Prompt Injector",
   "extensions": {
     "colorMeta": {
@@ -463,6 +463,10 @@
       "discussion-reply": {
         "displayName": "讨论回复",
         "purpose": "模型回复；16pt 系统比例字体、28pt 行高，无气泡底，每轮结束使用分隔线。"
+      },
+      "management-card-title": {
+        "displayName": "V7 摘要卡片标题",
+        "purpose": "内容库摘要卡片的两行标题；局部延伸，不替换既有列表或阅读标题。"
       }
     },
     "shadows": [
@@ -531,6 +535,10 @@
       {
         "name": "management-main-wide",
         "value": "main content width >= 1100pt"
+      },
+      {
+        "name": "management-summary-grid-wide",
+        "value": "grid content width >= 1000pt"
       }
     ]
   },
@@ -611,6 +619,22 @@
       "description": "52pt 经验行，当前讨论使用深灰高亮；文字首次发起讨论、已有会话则恢复，44pt 复选点击区只改变勾选。此面板示例保留两个独立原生语义操作和焦点状态，不调用 LLM、不模拟 AppKit 会话。",
       "html": "<div class=\"ds-experience-row\" data-active=\"true\"><label class=\"ds-experience-check\"><input type=\"checkbox\" aria-label=\"勾选经验：用脚本验证规则\"><span><svg viewBox=\"0 0 16 16\" fill=\"none\" aria-hidden=\"true\"><path d=\"M3.33333 8L6 10.6667L12.6667 4\" stroke=\"currentColor\" stroke-width=\"1.06667\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></span></label><button class=\"ds-experience-discuss\" title=\"用脚本验证规则\">1. 用脚本验证规则</button></div>",
       "css": ".ds-experience-row{font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;box-sizing:border-box;width:398px;max-width:100%;height:52px;padding:4px;border-radius:10px;color:#F4F4F2}.ds-experience-row[data-active=true]{background:#292929}.ds-experience-check{position:relative;display:flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;cursor:pointer}.ds-experience-check input{position:absolute;opacity:0;width:18px;height:18px}.ds-experience-check span{display:flex;width:18px;height:18px;box-sizing:border-box;border:1px solid #92928F;border-radius:4px}.ds-experience-check svg{width:16px;height:16px;visibility:hidden}.ds-experience-check input:checked+span svg{visibility:visible}.ds-experience-check input:focus-visible+span{outline:2px solid rgb(76% 76% 76%);outline-offset:2px}.ds-experience-discuss{font-family:system-ui,-apple-system,sans-serif;flex:1;min-width:0;height:44px;padding:0 8px 0 0;border:0;border-radius:10px;background:transparent;color:#F4F4F2;font-size:15px;text-align:left;overflow:hidden;text-overflow:ellipsis;cursor:pointer}.ds-experience-discuss:hover,.ds-experience-check:hover{background:rgb(100% 100% 100% / 6%)}.ds-experience-discuss:active{background:rgb(100% 100% 100% / 12%)}.ds-experience-discuss:focus-visible{outline:2px solid rgb(76% 76% 76%);outline-offset:-2px}"
+    },
+    {
+      "name": "V7 内容库摘要卡片",
+      "kind": "card",
+      "refersTo": "management-summary-card",
+      "description": "V7 ManagementCard 的局部卡片模式：178pt 高、14pt 圆角，17pt 标题与13pt 简述；网格16pt 间距，实际内容宽度至少1000pt 时三列，否则两列。打开卡片与来源入口独立；选中只提亮边界。CSS 色点与焦点仅作面板近似，不替代原生分类资源、完整正文加载或 AppKit 度量。",
+      "html": "<article class=\"ds-v7-summary-card\" data-selected=\"false\"><button class=\"ds-v7-summary-open\" aria-label=\"打开经验：先澄清目标，再讨论实现\" title=\"先澄清目标，再讨论实现\"><span class=\"ds-v7-summary-category\"><span class=\"ds-v7-summary-dot\" aria-hidden=\"true\"></span>需求对接</span><span class=\"ds-v7-summary-title\">先澄清目标，再讨论实现</span><span class=\"ds-v7-summary-text\">对齐使用场景与验收标准，避免过早锁定技术方案。</span></button><a class=\"ds-v7-summary-source\" href=\"https://example.com\" target=\"_blank\" rel=\"noopener noreferrer\" aria-label=\"打开来源链接\">来源链接<svg aria-hidden=\"true\" preserveAspectRatio=\"none\" overflow=\"visible\" style=\"display: block;\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g id=\"Icon / external-link\">\n<path id=\"Vector\" d=\"M15 3H21V9\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke=\"#F4F4F2\"/>\n<path id=\"Vector_2\" d=\"M10 14L21 3\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke=\"#F4F4F2\"/>\n<path id=\"Vector_3\" d=\"M18 13V19C18 19.5304 17.7893 20.0391 17.4142 20.4142C17.0391 20.7893 16.5304 21 16 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V8C3 7.46957 3.21071 6.96086 3.58579 6.58579C3.96086 6.21071 4.46957 6 5 6H11\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke=\"#F4F4F2\"/>\n</g>\n</svg></a></article>",
+      "css": ".ds-v7-summary-card{position:relative;display:flex;flex-direction:column;box-sizing:border-box;width:376px;max-width:100%;height:178px;border:1px solid #2B2B2B;border-radius:14px;background:#101010;color:#F4F4F2;font-family:system-ui,-apple-system,sans-serif}.ds-v7-summary-card[data-selected=true]{border-color:rgb(76% 76% 76%)}.ds-v7-summary-open{width:100%;padding:16px 20px 0;border:0;border-radius:14px;background:transparent;color:#F4F4F2;font-family:system-ui,-apple-system,sans-serif;text-align:left;cursor:pointer;display:flex;flex-direction:column}.ds-v7-summary-open::after{content:\"\";position:absolute;inset:0;border-radius:14px}.ds-v7-summary-open:hover{background:transparent}.ds-v7-summary-open:focus-visible{outline:none}.ds-v7-summary-card:has(.ds-v7-summary-open:focus-visible){outline:2px solid rgb(76% 76% 76%);outline-offset:2px}.ds-v7-summary-category{position:relative;height:24px;padding-left:14px;line-height:24px;color:#F5D975;font-size:12px;font-weight:400}.ds-v7-summary-dot{position:absolute;left:2px;top:9px;width:6px;height:6px;border-radius:50%;background:#F5D975;box-shadow:0 0 10px #F5D975}.ds-v7-summary-title{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;max-height:48px;min-height:28px;margin-top:8px;font-size:17px;font-weight:500;line-height:24px}.ds-v7-summary-text{display:block;width:100%;margin-top:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:400;line-height:22px;color:#A8A8A4}.ds-v7-summary-source{position:relative;z-index:1;align-self:flex-start;flex:none;margin:8px 12px 0;height:28px;padding:0 8px;display:inline-flex;align-items:center;gap:8px;border-radius:10px;color:#A8A8A4;font-size:13px;text-decoration:none}.ds-v7-summary-source:hover{background:rgb(100% 100% 100% / 6%)}.ds-v7-summary-source:active{background:rgb(100% 100% 100% / 12%)}.ds-v7-summary-source:focus-visible{outline:2px solid rgb(76% 76% 76%);outline-offset:2px}.ds-v7-summary-source svg{width:14px;height:14px}"
+    },
+    {
+      "name": "V7 工作台条目与独立勾选",
+      "kind": "custom",
+      "refersTo": "experience-workbench-row",
+      "description": "V7 ExperienceRowCell 的70pt 双行模式：15pt 标题和11pt 状态，当前条深灰高亮与复选框相互独立；18pt 方框仍在44pt 点击区内，父列表提供4pt 间距。文字只查看，勾选只选择批量生成，人工确认另有操作。静态预览不生成、确认或保存内容，焦点是浏览器近似。",
+      "html": "<div class=\"ds-v7-workbench-row\" data-current=\"true\"><label class=\"ds-v7-workbench-check\"><input type=\"checkbox\" aria-label=\"选择用于生成：用脚本验证规则\"><span><svg viewBox=\"0 0 16 16\" fill=\"none\" aria-hidden=\"true\"><path d=\"M3.33333 8L6 10.6667L12.6667 4\" stroke=\"currentColor\" stroke-width=\"1.06667\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></span></label><button class=\"ds-v7-workbench-view\" aria-current=\"true\" title=\"用脚本验证规则\">用脚本验证规则</button><span class=\"ds-v7-workbench-state\">待确认</span></div>",
+      "css": ".ds-v7-workbench-row{position:relative;font-family:system-ui,-apple-system,sans-serif;width:284px;max-width:100%;height:70px;border-radius:10px;color:#F4F4F2}.ds-v7-workbench-row[data-current=true]{background:#292929}.ds-v7-workbench-check{position:absolute;left:4px;top:4px;display:flex;align-items:center;justify-content:center;width:44px;height:44px;cursor:pointer}.ds-v7-workbench-check input{position:absolute;opacity:0;width:18px;height:18px}.ds-v7-workbench-check span{display:flex;width:18px;height:18px;box-sizing:border-box;border:1px solid #92928F;border-radius:4px}.ds-v7-workbench-check svg{width:16px;height:16px;visibility:hidden}.ds-v7-workbench-check input:checked+span svg{visibility:visible}.ds-v7-workbench-check input:focus-visible+span{outline:2px solid rgb(76% 76% 76%);outline-offset:2px}.ds-v7-workbench-view{position:absolute;left:48px;right:12px;top:4px;height:28px;padding:0 12px;border:0;border-radius:10px;background:transparent;color:#F4F4F2;font-family:system-ui,-apple-system,sans-serif;font-size:15px;font-weight:400;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.ds-v7-workbench-view:hover{background:rgb(100% 100% 100% / 6%)}.ds-v7-workbench-view:active{background:rgb(100% 100% 100% / 12%)}.ds-v7-workbench-view:focus-visible{outline:2px solid rgb(76% 76% 76%);outline-offset:2px}.ds-v7-workbench-state{position:absolute;left:60px;right:12px;top:34px;height:18px;font-size:11px;font-weight:400;line-height:18px;color:#A8A8A4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
     }
   ],
   "narrative": {

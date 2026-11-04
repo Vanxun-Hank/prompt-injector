@@ -38,6 +38,7 @@ struct ExperienceSession: Codable, Equatable {
     var raw = ""
     var items: [ExperienceItem] = []
     var manualPrompt: String?
+    var manualEntry: Bool?
     var currentID: String?
     var current: ExperienceItem? { items.first { $0.id == currentID } }
     var selected: [ExperienceItem] { items.filter(\.selected) }
@@ -46,7 +47,7 @@ struct ExperienceSession: Codable, Equatable {
         var next = self
         next.items.removeAll { $0.confirmed == true }
         if !next.items.contains(where: { $0.id == next.currentID }) { next.currentID = next.items.first?.id }
-        if next.items.isEmpty { next.input = ""; next.raw = ""; next.source = ""; next.manualPrompt = nil }
+        if next.items.isEmpty { next.input = ""; next.raw = ""; next.source = ""; next.manualPrompt = nil; next.manualEntry = nil }
         next.revision += 1
         return next
     }

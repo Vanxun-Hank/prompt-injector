@@ -30,6 +30,7 @@ import Foundation
     }
     deinit { task?.cancel(); autosave?.cancel() }
     var current: ExperienceItem? { session.current }
+    var isManualEntry: Bool { session.manualEntry ?? (session.manualPrompt != nil) }
     var reviewItems: [ExperienceItem] { session.items.filter { $0.candidate != nil } }
     func changeInput(_ value: String) {
         guard !saving else { return }
@@ -56,7 +57,11 @@ import Foundation
     func send() { guard !busy, !saving, session.items.isEmpty else { return }; identify() }
     func beginManual() {
         guard !busy, !saving, session.items.isEmpty else { return }
-        session.manualPrompt = session.manualPrompt ?? ""; changed()
+        session.manualPrompt = session.manualPrompt ?? ""; session.manualEntry = true; changed()
+    }
+    func beginAutomatic() {
+        guard !busy, !saving, session.items.isEmpty else { return }
+        session.manualEntry = false; changed()
     }
     func changePrompt(_ text: String) {
         guard !saving else { return }
@@ -163,7 +168,8 @@ import Foundation
     }
     func updateCandidate(_ id: String, _ value: GeneratedPrompt) {
         guard !saving, let i = session.items.firstIndex(where: { $0.id == id }) else { return }
-        if activeItemID == id { cancel() }; session.items[i].candidate = value; session.items[i].confirmed = false; session.items[i].suggestion = nil; changed(notify: false)
+        session.items[i].candidate = value; session.items[i].confirmed = false; session.items[i].suggestion = nil
+        if activeItemID == id { cancel() }; changed(notify: false)
     }
     private func run(stage: String, work: @escaping (UUID) async throws -> Void) {
         let token = UUID(); operationID = token; busy = true; failed = false; status = stage == "experience-organize" ? "正在整理…" : "正在处理…"; onChange?()
@@ -227,7 +233,9 @@ import Foundation
                 try await self.persist()
                 let snapshot = self.session
                 let saved = try await self.library.saveExperiences(snapshot)
-                self.session = snapshot.remaining; self.saving = false; self.task = nil; self.status = "已保存"; self.onChange?(); self.onSaved?(saved)
+                self.session = snapshot.remaining; self.saving = false; self.task = nil
+                self.status = self.session.items.isEmpty ? "已保存 \(saved.count) 条经验" : "已保存 \(saved.count) 条，其余 \(self.session.items.count) 条保留为草稿"
+                self.onChange?(); self.onSaved?(saved)
             } catch { self.saving = false; self.task = nil; self.show(error) }
         }
     }

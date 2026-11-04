@@ -9,9 +9,9 @@ extension AppDelegate {
         let previousClipboard = pasteboard.pasteboardItems?.map { item in item.types.compactMap { type in item.data(forType: type).map { (type, $0) } } } ?? []
         var copiedChangeCount: Int?
         func check(_ name: String, _ passed: Bool) { checks.append(["name": name, "passed": passed]) }
-        @MainActor func until(_ condition: () -> Bool) async {
+        @MainActor func until(_ condition: () -> Bool, line: Int = #line) async {
             for _ in 0..<300 { if condition() { return }; try? await Task.sleep(nanoseconds: 10_000_000) }
-            check("management/async-timeout", false)
+            checks.append(["name": "management/async-timeout", "passed": false, "line": line])
         }
         openManagement()
         guard let manager = management, let window = manager.window else { return [["name": "management/window", "passed": false]] }
@@ -39,7 +39,7 @@ extension AppDelegate {
             defer { sqlite3_close(db) }
             return sqlite3_exec(db, command, nil, nil, nil) == SQLITE_OK
         }
-        await until { manager.selectedEntry != nil }
+        await until { !manager.root.libraryView.items.isEmpty }
         check("management/regular-application", NSApp.activationPolicy() == .regular)
         // NSApplication resamples icon representations; compare pixels with 8/255 average-channel tolerance.
         func iconPixels(_ image: NSImage?) -> NSBitmapImageRep? {
@@ -62,8 +62,11 @@ extension AppDelegate {
         })
         check("management/native-window-controls", [.closeButton, .miniaturizeButton, .zoomButton].allSatisfy { window.standardWindowButton($0)?.isEnabled == true })
         check("management/initial-real-library", manager.root.libraryView.items.count == 7)
-        check("assets/all-figma-assets-load", ["Logo", "Grid", "Chart", "Search", "Plus", "Down", "Copy", "Edit", "Check", "Back", "Close", "Insert", "Chevron", "Status", "Dot-requirements", "Dot-coding", "Dot-debugging", "Dot-review", "Dot-release", "MenuBar", "AppIcon"].allSatisfy { DesignAssets.image($0, template: false)?.size.width ?? 0 > 0 })
+        check("assets/all-figma-assets-load", ["Logo", "Grid", "List", "ExternalLink", "Chart", "Search", "Plus", "Down", "Copy", "Edit", "Check", "Back", "Close", "Insert", "Chevron", "Status", "Dot-requirements", "Dot-coding", "Dot-debugging", "Dot-review", "Dot-release", "MenuBar", "AppIcon"].allSatisfy { DesignAssets.image($0, template: false)?.size.width ?? 0 > 0 })
         await capture("management-library")
+        check("v7/grid-default-and-three-columns", manager.root.libraryView.presentation == .grid && manager.root.libraryView.grid.columnCount == 3 && manager.selectedEntry == nil)
+        manager.root.libraryView.openItem(id: manager.root.libraryView.items[0].summary.id)
+        await until { manager.selectedEntry != nil }
         if let entry = manager.selectedEntry {
             let alert = ManagementWindowController.deletionAlert(entry)
             alert.beginSheetModal(for: window) { _ in }
@@ -138,6 +141,11 @@ extension AppDelegate {
             editing.promptText.text.string += "\n编辑后的完整段落"
             editing.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification, object: editing.titleField))
             let changed = editing.value
+            await capture("management-inline-editor")
+            check("v7/edit-stays-in-preview", editing.inlineMode && editing.superview === manager.root.libraryView.preview)
+            window.setContentSize(NSSize(width: 1100, height: 720)); await capture("management-inline-minimum")
+            check("v7/inline-minimum-fields-fit", editing.frame == manager.root.libraryView.preview.bounds && editing.content.bounds.contains(editing.promptText.frame) && manager.root.bounds.contains(manager.root.saveButton.convert(manager.root.saveButton.bounds, to: manager.root)))
+            window.setContentSize(NSSize(width: 1440, height: 960))
             manager.root.cancelButton.performClick(nil)
             await until { manager.root.page == .library }
             manager.newEntry()
@@ -160,6 +168,10 @@ extension AppDelegate {
         }
         manager.root.all.performClick(nil)
         window.setContentSize(NSSize(width: 1100, height: 720)); window.center()
+        await capture("management-grid-minimum")
+        check("v7/grid-minimum-two-columns", manager.root.libraryView.grid.columnCount == 2)
+        if let first = manager.root.libraryView.items.first { manager.root.libraryView.openItem(id: first.summary.id) }
+        await until { manager.selectedEntry != nil }
         manager.root.libraryView.segments.buttons[0].performClick(nil)
         await capture("management-minimum")
         check("management/minimum-layout-actions-accessible", manager.root.newButton.frame.maxX <= manager.root.band.bounds.width && manager.root.libraryView.copyButton.frame.minX >= 0)
@@ -210,7 +222,7 @@ extension AppDelegate {
             }
         }
         manager.showLibrary(category: nil)
-        await until { manager.selectedEntry != nil }
+        await until { !manager.root.libraryView.items.isEmpty }
         let actualCategories = manager.root.categoryItems.map { PromptCategory(id: $0.category!, name: $0.label, symbol: "folder") }
         let many = actualCategories + (7...26).map { PromptCategory(id: "scroll-fixture-\($0)", name: "滚动测试 \($0)", symbol: "folder") }
         manager.root.setCategories(many); manager.root.layoutSubtreeIfNeeded()

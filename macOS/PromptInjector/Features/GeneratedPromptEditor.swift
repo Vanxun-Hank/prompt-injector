@@ -75,7 +75,9 @@ import AppKit
         return true
     }
     override func layout() {
-        super.layout(); scroll.frame = bounds; empty.frame = bounds.insetBy(dx: 12, dy: 12)
+        super.layout(); scroll.frame = bounds
+        // CGRect.insetBy returns an infinite origin when a hidden editor is smaller than its inset.
+        empty.frame = NSRect(x: 12, y: 12, width: max(0, bounds.width - 24), height: max(0, bounds.height - 24))
         let w = max(40, scroll.contentSize.width - 24)
         body.frame = NSRect(x: 0, y: 0, width: scroll.contentSize.width, height: 880)
         var y: CGFloat = 12

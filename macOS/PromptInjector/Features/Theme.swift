@@ -65,7 +65,7 @@ final class ActionButton: NSButton {
         font = .systemFont(ofSize: 13, weight: .medium)
         focusRingType = .exterior
         if let symbol {
-            let assets = ["doc.on.doc": "Copy", "arrow.up.right": "Insert", "chevron.left": "Back", "xmark": "Close", "plus": "Plus", "pencil": "Edit", "checkmark": "Check", "chart.bar": "Chart", "square.grid.2x2": "Grid"]
+            let assets = ["doc.on.doc": "Copy", "arrow.up.right": "Insert", "chevron.left": "Back", "xmark": "Close", "plus": "Plus", "pencil": "Edit", "checkmark": "Check", "chart.bar": "Chart", "square.grid.2x2": "Grid", "list.bullet": "List"]
             image = assets[symbol].flatMap { DesignAssets.image($0) } ?? NSImage(systemSymbolName: symbol, accessibilityDescription: title)
             imagePosition = title.isEmpty ? .imageOnly : .imageLeading
             symbolConfiguration = .init(pointSize: 13, weight: .medium)

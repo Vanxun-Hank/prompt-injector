@@ -92,3 +92,11 @@
 | PI-027 | Figma category 使用手写示例数组，错误混入「先说明改动」；App 的 SQLite category_id＋搜索 AND 原本正确，但切换时旧 rows 未立即清空，会在新分类标题下暂留旧卡片。修正示例为编码3条；App 发查询前清空旧 rows/详情/计数，代次与页面拒绝迟到响应，不改 SQL。 | ManagementTests.testCategoryIDAndSearchIntersectionNeverMixesRequirementsIntoCoding 修复前已通过；ManagementFilteringTests.testChangingCategoryImmediatelyClearsOldRowsAndRejectsEarlierQueries 修复前真实失败，修复后通过。 |
 | PI-028 | 新确认流程初次接入后，审核集合仍按非空 Prompt 动态过滤，左列表旧索引与新集合错位。空 Prompt 保留候选集合，列表回调传稳定 ID，确认仍在字段旁拦截必填错误。 | ManagementInteractionTests.testClearingPromptKeepsReviewRowsAndStableSelectionUntilCorrection 修复前5断言失败；修复后可切B、返A保留空值，空值不可确认。独立 verdict仅对此项判 resolved。 |
 | PI-029 | Figma 部分保存页沿用原20条共享计数变量，列表已19条但底部仍0/20；菜单手动锚点误用整屏坐标，SWAP 删除确认继承角落位置。 | 剩余19／4／0各使用对应状态；菜单改相对触发器锚定，删除独立居中并按原详情 ID 取消。真实网页验证，证据 artifacts/management-v7-fixes/；这些是原型，不是 SQLite/API 验收。 |
+
+## V7 完整移植 · v0.6.0 · 2026-11-04
+
+| 编号 | 根因与修复边界 | 回归证据 |
+| --- | --- | --- |
+| PI-030 | 原位编辑初次接入时，根视图在详情容器缩放前使用旧 bounds 布局，最小窗口右侧超出屏幕。改由详情容器更新 frame 后再布局其编辑器及底部动作。 | 修复前 management-inline-minimum 截图真实裁切；新原生检查同时验证 editor.frame == preview.bounds、转换到 root 的字段与按钮边界，不再仅检查子视图自身 bounds。 |
+| PI-031 | 生成时手改触发 cancel，同步 onChange 先读到旧候选并替换当前编辑器。先赋最新候选及确认状态再取消，保留同一编辑器和焦点。 | ManagementV7Tests.testEditingDuringGenerationKeepsActiveEditorAndRejectsLateResponse：真实控制器＋可控制迟到结果，断言编辑器 identity、最新手贴和无新建议。 |
+| PI-032 | 隐藏的 GeneratedPromptEditor 为零尺寸，CGRect.insetBy 大于尺寸返回无穷原点，AppKit 报 NSLayoutConstraint 超限。LLDB 在 _NSLayoutConstraintNumberExceedsLimit 的实际栈定位到该空态标签布局。 | 用有限原点和非负宽高代替 inset；最新完整 Swift／原生日志不再报此警告，inline候选采用与隐藏布局回归通过。调试器的截图失败不作原生验收。 |

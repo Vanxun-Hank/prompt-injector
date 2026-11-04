@@ -85,24 +85,43 @@ final class SearchBox: SurfaceView {
     let subtitle = Theme.label(size: 12, color: Theme.secondary)
     let band = SurfaceView(color: Theme.band, radius: 16, border: nil)
     let search = SearchBox()
-    let newButton = ActionButton(title: "", symbol: "plus", primary: true, target: nil, action: nil)
+    let newButton = ActionButton(title: "新增经验", symbol: nil, primary: true, target: nil, action: nil)
+    let gridButton = ActionButton(title: "", symbol: "square.grid.2x2", target: nil, action: nil)
+    let listButton = ActionButton(title: "", symbol: "list.bullet", target: nil, action: nil)
+    let backButton = ActionButton(title: "返回全部内容", symbol: nil, target: nil, action: nil)
     let statusLabel = Theme.label("尚未保存", size: 13)
     private let statusDot = NSImageView()
     let requiredLabel = Theme.label(size: 12, color: Theme.secondary)
     let cancelButton = ActionButton(title: "取消", symbol: nil, target: nil, action: nil)
     let saveButton = ActionButton(title: "保存条目", symbol: "checkmark", primary: true, target: nil, action: nil)
     let libraryView = ManagementLibraryView()
-    var editor: PromptEditorView? { didSet { oldValue?.removeFromSuperview(); if let editor { addSubview(editor) }; needsLayout = true } }
+    var editor: PromptEditorView? {
+        didSet {
+            [cancelButton, saveButton, requiredLabel].forEach(band.addSubview)
+            oldValue?.inlineActions = nil
+            oldValue?.removeFromSuperview()
+            if let editor {
+                if editor.inlineMode {
+                    libraryView.preview.addSubview(editor); [cancelButton, saveButton, requiredLabel].forEach(editor.content.addSubview)
+                    editor.inlineActions = (cancelButton, saveButton, requiredLabel)
+                }
+                else { addSubview(editor) }
+            }
+            needsLayout = true
+        }
+    }
     var experienceView: ExperienceView? { didSet { oldValue?.removeFromSuperview(); if let experienceView { addSubview(experienceView) }; needsLayout = true } }
     var dashboard: UsageDashboard? { didSet { oldValue?.removeFromSuperview(); if let dashboard { addSubview(dashboard) }; needsLayout = true } }
     let footer = Theme.label(size: 11, color: Theme.tertiary)
     override init(frame: NSRect) {
         super.init(frame: frame); wantsLayer = true; layer?.backgroundColor = Theme.canvas.cgColor; layer?.cornerRadius = 20; layer?.masksToBounds = true
-        [sidebar, title, subtitle, band, libraryView, footer].forEach(addSubview)
+        [sidebar, title, subtitle, band, libraryView, footer, backButton].forEach(addSubview)
         [logo, brand, all, stats, sidebarRule, categoryLabel, lowerRule, shortcut].forEach(sidebar.addSubview)
         sidebar.addSubview(categoryScroll); categoryScroll.drawsBackground = false
         categoryScroll.hasVerticalScroller = true; categoryScroll.scrollerStyle = .overlay; categoryScroll.documentView = categoryBody
-        [search, newButton, statusDot, statusLabel, requiredLabel, cancelButton, saveButton].forEach(band.addSubview)
+        [search, newButton, gridButton, listButton, statusDot, statusLabel, requiredLabel, cancelButton, saveButton].forEach(band.addSubview)
+        gridButton.outlined = true; listButton.outlined = true; backButton.outlined = true
+        gridButton.setAccessibilityLabel("卡片视图"); listButton.setAccessibilityLabel("列表视图")
         statusDot.image = DesignAssets.image("Status"); statusDot.contentTintColor = Theme.hex(0xF5D975)
         requiredLabel.lineBreakMode = .byWordWrapping; requiredLabel.maximumNumberOfLines = 2
         cancelButton.outlined = true
@@ -152,13 +171,21 @@ final class SearchBox: SurfaceView {
         libraryView.isHidden = page != .library; editor?.isHidden = !editing; dashboard?.isHidden = !statistics
         experienceView?.isHidden = page != .experience
         if page == .experience {
-            subtitle.isHidden = true; footer.isHidden = true
+            subtitle.isHidden = false; footer.isHidden = true
             band.frame = NSRect(x: 248, y: 32, width: main, height: 40); band.layer?.backgroundColor = NSColor.clear.cgColor
             [search, newButton, statusDot, statusLabel, requiredLabel, saveButton].forEach { $0.isHidden = true }
-            cancelButton.isHidden = false; cancelButton.title = "取消"; cancelButton.outlined = false
-            cancelButton.frame = NSRect(x: main - 76, y: 0, width: 76, height: 36)
+            cancelButton.isHidden = false; cancelButton.title = "返回内容库"; cancelButton.outlined = true
+            cancelButton.frame = NSRect(x: main - 128, y: 0, width: 128, height: 40)
             title.frame.size.width = main - 100
-            experienceView?.frame = NSRect(x: 248, y: 112, width: main, height: h - 144)
+            experienceView?.frame = NSRect(x: 248, y: 134, width: main, height: h - 166)
+            if let experienceView, !experienceView.controller.session.items.isEmpty || experienceView.completedCount > 0 {
+                title.frame = NSRect(x: 248, y: 36, width: main - 240, height: 38)
+                subtitle.isHidden = false
+                subtitle.frame = NSRect(x: 248, y: 82, width: main, height: 22)
+                cancelButton.isHidden = true; saveButton.isHidden = false
+                saveButton.frame = NSRect(x: main - 172, y: 0, width: 172, height: 40)
+                experienceView.frame = NSRect(x: 248, y: 134, width: main, height: h - 166)
+            }
         } else { cancelButton.outlined = true }
         if editing, editor?.reviewMode == true {
             subtitle.isHidden = true; footer.isHidden = true
@@ -169,6 +196,28 @@ final class SearchBox: SurfaceView {
             saveButton.frame = NSRect(x: main - 144, y: 0, width: 144, height: 40)
             title.frame.size.width = main - 320
             editor?.frame = NSRect(x: 248, y: 112, width: main, height: h - 144)
+        }
+        gridButton.isHidden = page != .library; listButton.isHidden = page != .library
+        backButton.isHidden = true
+        if page == .library || (editing && editor?.inlineMode == true) {
+            let grid = libraryView.presentation == .grid && !editing
+            title.isHidden = !grid; subtitle.isHidden = !grid; band.isHidden = !grid
+            backButton.isHidden = grid; backButton.frame = NSRect(x: 248, y: 36, width: 150, height: 40)
+            band.frame = NSRect(x: w - 556, y: 36, width: 524, height: 40)
+            search.frame = NSRect(x: 0, y: 0, width: 260, height: 40)
+            gridButton.frame = NSRect(x: 272, y: 0, width: 40, height: 40)
+            listButton.frame = NSRect(x: 322, y: 0, width: 40, height: 40)
+            newButton.frame = NSRect(x: 372, y: 0, width: 140, height: 40)
+            title.frame = NSRect(x: 248, y: 36, width: max(150, main - 580), height: 38)
+            subtitle.frame = NSRect(x: 248, y: 82, width: main, height: 22)
+            gridButton.selectedStyle = grid; listButton.selectedStyle = !grid
+            libraryView.frame = NSRect(x: 248, y: 134, width: main, height: h - 166)
+            libraryView.isHidden = false; libraryView.isEditing = editing
+            if editing, let editor {
+                editor.frame = libraryView.preview.bounds
+                saveButton.title = "保存修改"
+                requiredLabel.isHidden = false
+            }
         }
     }
 }
@@ -189,6 +238,12 @@ final class ManagementSummaryCell: NSTableCellView {
 }
 
 @MainActor final class ManagementLibraryView: FlippedView, NSTableViewDataSource, NSTableViewDelegate {
+    enum Presentation { case grid, detail }
+    var presentation: Presentation = .grid { didSet { needsLayout = true; onPresentationChange?() } }
+    var onPresentationChange: (() -> Void)?
+    var isEditing = false { didSet { if oldValue != isEditing { needsLayout = true } } }
+    var navigationEnabled = true
+    let grid = ManagementGrid(frame: .zero)
     let listPanel = SurfaceView(color: Theme.shell), preview = SurfaceView(color: Theme.shell)
     let table = NSTableView(), listScroll = NSScrollView()
     let categoryLabel = Theme.label(size: 13, weight: .medium)
@@ -204,10 +259,11 @@ final class ManagementSummaryCell: NSTableCellView {
     private(set) var items: [ManagedSummary] = []
     private var settingSelection = false
     private var entry: PromptEntry?
-    var categories: [PromptCategory] = [] { didSet { table.reloadData(); setEntry(entry) } }
+    var categories: [PromptCategory] = [] { didSet { grid.categories = categories; table.reloadData(); setEntry(entry) } }
     override init(frame: NSRect) {
         super.init(frame: frame)
-        addSubview(listPanel); addSubview(preview); listPanel.addSubview(listScroll)
+        addSubview(listPanel); addSubview(preview); addSubview(grid); listPanel.addSubview(listScroll)
+        grid.onOpen = { [weak self] item in self?.openItem(id: item.summary.id) }
         [categoryLabel, heading, summary, rule, scroll, segments, copyButton, editButton, moreButton, sourceButton].forEach(preview.addSubview)
         for field in [heading, summary] { field.maximumNumberOfLines = 2; field.lineBreakMode = .byTruncatingTail; field.cell?.wraps = true; field.cell?.isScrollable = false }
         table.addTableColumn(NSTableColumn(identifier: .init("entry"))); table.headerView = nil; table.style = .plain
@@ -241,9 +297,17 @@ final class ManagementSummaryCell: NSTableCellView {
             table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
         } else { table.deselectAll(nil); setEntry(nil) }
         settingSelection = false
-        if items.indices.contains(table.selectedRow) { onSelect?(items[table.selectedRow]) }
+        grid.setItems(items, selected: id)
+        if presentation == .detail, items.indices.contains(table.selectedRow) { onSelect?(items[table.selectedRow]) }
+    }
+    func openItem(id: String) {
+        guard let index = items.firstIndex(where: { $0.summary.id == id }) else { return }
+        presentation = .detail; settingSelection = true
+        table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false); table.scrollRowToVisible(index)
+        settingSelection = false; onSelect?(items[index])
     }
     func numberOfRows(in tableView: NSTableView) -> Int { items.count }
+    func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool { navigationEnabled }
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? { PromptRow() }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? { let cell = ManagementSummaryCell(); cell.set(items[row]); return cell }
     func tableViewSelectionDidChange(_ notification: Notification) { if !settingSelection, items.indices.contains(table.selectedRow) { onSelect?(items[table.selectedRow]) } }
@@ -284,8 +348,13 @@ final class ManagementSummaryCell: NSTableCellView {
     }
     override func layout() {
         super.layout(); let listWidth: CGFloat = bounds.width >= 1100 ? 352 : 280
+        grid.frame = bounds; grid.isHidden = presentation != .grid
+        listPanel.isHidden = presentation == .grid; preview.isHidden = presentation == .grid
+        [categoryLabel, heading, summary, rule, scroll, segments, copyButton, editButton, moreButton, sourceButton].forEach { $0.isHidden = isEditing }
+        if !isEditing { sourceButton.isHidden = entry?.source.isEmpty != false }
         listPanel.frame = NSRect(x: 0, y: 0, width: listWidth, height: bounds.height)
         preview.frame = NSRect(x: listWidth + 20, y: 0, width: bounds.width - listWidth - 20, height: bounds.height)
+        for editor in preview.subviews.compactMap({ $0 as? PromptEditorView }) { editor.frame = preview.bounds }
         listScroll.frame = NSRect(x: 12, y: 12, width: listWidth - 24, height: bounds.height - 24)
         table.tableColumns.first?.width = listScroll.contentSize.width
         let w = preview.bounds.width, h = preview.bounds.height, pad: CGFloat = bounds.width >= 1100 ? 32 : 24
@@ -380,8 +449,21 @@ final class ManagementSummaryCell: NSTableCellView {
         root.all.onPress = { [weak self] in self?.showLibrary(category: nil) }
         root.stats.onPress = { [weak self] in self?.showStatistics() }
         root.newButton.onPress = { [weak self] in self?.newExperience() }
+        root.gridButton.onPress = { [weak self] in self?.root.libraryView.presentation = .grid }
+        root.listButton.onPress = { [weak self] in
+            guard let self, let id = self.selectedEntry?.id ?? self.root.libraryView.items.first?.summary.id else { return }
+            self.root.libraryView.openItem(id: id)
+        }
+        root.backButton.onPress = { [weak self] in self?.backToGrid() }
+        root.libraryView.onPresentationChange = { [weak self] in
+            guard let self else { return }; self.root.needsLayout = true
+            if self.root.libraryView.presentation == .grid { self.root.libraryView.grid.focus() }
+        }
         root.cancelButton.onPress = { [weak self] in
-            guard let self else { return }; if self.reviewID != nil { self.backToExperience() } else { self.leaveEditor() }
+            guard let self else { return }
+            if self.root.editor?.inlineMode == true { self.leaveInlineEditor() }
+            else if self.reviewID != nil { self.backToExperience() }
+            else { self.leaveEditor() }
         }
         root.saveButton.onPress = { [weak self] in self?.saveEditor() }
         root.search.field.delegate = self
@@ -398,6 +480,7 @@ final class ManagementSummaryCell: NSTableCellView {
         NSApp.setActivationPolicy(.regular)
         if let icon = DesignAssets.image("AppIcon", template: false) { NSApp.applicationIconImage = icon }
         showWindow(nil); window?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+        if root.page == .library, root.libraryView.presentation == .grid { root.libraryView.grid.focus() }
     }
     func windowDidEnterFullScreen(_ notification: Notification) {
         DiagnosticLog.shared.write(.managementWindowState, fields: .init(stage: "fullscreen-entered"))
@@ -422,11 +505,11 @@ final class ManagementSummaryCell: NSTableCellView {
             persistDraft { [weak self] success in if success { self?.root.page = .library; self?.showLibrary(category: category) } }
             return
         }
-        selectedCategory = category; root.page = .library
+        selectedCategory = category; root.page = .library; root.libraryView.presentation = .grid
         navigationGeneration += 1
-        root.title.stringValue = "内容库"
+        root.title.stringValue = "全部内容"
         root.footer.stringValue = ""
-        updateSidebar(); refreshLibrary()
+        updateSidebar(); refreshLibrary(preserveScroll: false)
     }
     private func updateSidebar() {
         root.all.selected = root.page != .statistics && selectedCategory == nil
@@ -442,18 +525,20 @@ final class ManagementSummaryCell: NSTableCellView {
                 self.root.setCategories(categories)
                 for item in self.root.categoryItems { item.onPress = { [weak self] in if let id = item.category { self?.chooseCategory(id) } } }
                 self.root.libraryView.categories = categories; self.root.editor?.setCategories(categories)
+                self.root.experienceView?.categories = categories
                 self.updateSidebar()
                 if self.root.page == .library { self.root.subtitle.stringValue = "\(self.root.libraryView.items.count) 条内容  ·  \(categories.count) 个分类" }
             }
         }
     }
-    func controlTextDidChange(_ obj: Notification) { refreshLibrary() }
-    private func refreshLibrary() {
+    func controlTextDidChange(_ obj: Notification) { refreshLibrary(preserveScroll: false) }
+    private func refreshLibrary(preserveScroll: Bool = true) {
         queryGeneration += 1; let generation = queryGeneration
         detailGeneration += 1
-        let preserve = selectedEntry?.id ?? "coding-small-steps"
+        let preserve = selectedEntry?.id
+        let scrollY = preserveScroll ? root.libraryView.grid.scroll.contentView.bounds.minY : 0
         selectedEntry = nil; root.libraryView.setEntry(nil); root.libraryView.setItems([], selecting: nil)
-        root.title.stringValue = selectedCategory.flatMap { id in counts.first { $0.id == id }?.name } ?? "内容库"
+        root.title.stringValue = selectedCategory.flatMap { id in counts.first { $0.id == id }?.name } ?? "全部内容"
         root.subtitle.stringValue = "0 条内容  ·  \(counts.count) 个分类"
         library.manage(category: selectedCategory, query: root.search.field.stringValue) { [weak self] result in
             guard let self, self.queryGeneration == generation, self.root.page == .library else {
@@ -462,19 +547,47 @@ final class ManagementSummaryCell: NSTableCellView {
             switch result {
             case .success(let values):
                 self.root.libraryView.setItems(values, selecting: preserve)
+                self.root.libraryView.grid.restoreScroll(scrollY)
                 self.root.subtitle.stringValue = "\(values.count) 条内容  ·  \(self.counts.count) 个分类"
             case .failure(let error): self.root.libraryView.setItems([], selecting: nil); self.root.footer.stringValue = error.localizedDescription
             }
         }
     }
     private func select(_ value: ManagedSummary) {
+        guard !isSaving else { return }
+        if root.editor?.inlineMode == true {
+            let navigation = navigationGeneration + 1; navigationGeneration = navigation
+            persistDraft { [weak self] success in
+                guard let self, success, self.navigationGeneration == navigation else { return }
+                self.cancelGeneration(); self.root.editor = nil; self.root.page = .library; self.select(value)
+            }
+            return
+        }
         detailGeneration += 1; let generation = detailGeneration
         selectedEntry = nil; root.libraryView.setEntry(nil)
         library.load(.detail(value.summary.categoryID, value.summary.id)) { [weak self] result in
-            guard let self, self.detailGeneration == generation else { return }
+            guard let self, self.detailGeneration == generation, self.root.page == .library, self.root.libraryView.presentation == .detail else { return }
             if case .success(.detail(let entry)) = result { self.selectedEntry = entry; self.root.libraryView.setEntry(entry) }
             else { self.root.libraryView.setEntry(nil) }
         }
+    }
+    private func leaveInlineEditor() {
+        guard !isSaving else { return }
+        cancelGeneration()
+        persistDraft { [weak self] success in
+            guard let self, success else { return }
+            self.root.editor = nil; self.root.page = .library; self.root.needsLayout = true
+        }
+    }
+    private func backToGrid() {
+        guard !isSaving else { return }
+        if root.editor?.inlineMode == true {
+            cancelGeneration()
+            persistDraft { [weak self] success in
+                guard let self, success else { return }
+                self.root.editor = nil; self.root.page = .library; self.root.libraryView.presentation = .grid
+            }
+        } else { root.libraryView.presentation = .grid }
     }
     private func copyEntry() {
         guard let entry = selectedEntry else { return }
@@ -527,13 +640,16 @@ final class ManagementSummaryCell: NSTableCellView {
         }
     }
     private func presentEditor(_ draft: EditorDraft, review: Bool = false) {
-        cancelGeneration(); draftWork?.cancel(); root.editor = PromptEditorView(draft: draft, categories: counts, reviewMode: review)
+        cancelGeneration(); draftWork?.cancel()
+        root.editor = PromptEditorView(draft: draft, categories: counts, reviewMode: review, inlineMode: !review && draft.original != nil)
+        if root.editor?.inlineMode == true { root.libraryView.presentation = .detail }
         root.editor?.onChange = { [weak self] in
             guard let self else { return }; if self.reviewID != nil { self.stashReview() } else { self.cancelGeneration(); self.scheduleDraft() }
         }
         root.editor?.generateButton.onPress = { [weak self] in
             guard let self else { return }
             if self.isGenerating { self.cancelGeneration(); self.root.requiredLabel.stringValue = "整理已取消，输入已保留。" }
+            else if let editor = self.root.editor, editor.inlineMode, editor.candidate != nil { self.compareInlineCandidate(editor) }
             else { self.generatePrompt() }
         }
         root.editor?.onFailure = { [weak self] error in
@@ -547,6 +663,18 @@ final class ManagementSummaryCell: NSTableCellView {
         root.footer.stringValue = ""
         root.saveButton.isEnabled = true; updateSidebar(); root.needsLayout = true
         root.cancelButton.title = review ? "返回整理" : "取消"; root.saveButton.title = review ? "保存已确认 \(experience?.session.confirmed.count ?? 0) 条" : "保存条目"
+    }
+    private func compareInlineCandidate(_ editor: PromptEditorView) {
+        guard let candidate = editor.candidate, let window else { return }
+        let snapshot = editor.draft
+        let alert = Self.comparisonAlert(current: editor.value.prompt, proposed: candidate.prompt)
+        alert.beginSheetModal(for: window) { [weak self, weak editor] response in
+            guard let self, let editor, self.root.editor === editor, editor.draft == snapshot else {
+                DiagnosticLog.shared.write(.generationDiscarded, fields: .init(stage: "inline-comparison-changed")); return
+            }
+            if response == .alertSecondButtonReturn { editor.adoptCandidate() }
+            else { editor.discardCandidate() }
+        }
     }
     private func scheduleDraft() {
         draftWork?.cancel(); root.statusLabel.stringValue = "尚未保存"
@@ -571,7 +699,7 @@ final class ManagementSummaryCell: NSTableCellView {
     func cancelGeneration() {
         guard let id = generationID else { return }
         generationID = nil; generationTask?.cancel(); generationTask = nil
-        root.editor?.generateButton.title = "整理"
+        root.editor?.generateButton.title = root.editor?.inlineMode == true ? "重新生成" : "整理"
         root.requiredLabel.stringValue = "整理已取消，输入已保留。"; root.requiredLabel.textColor = Theme.secondary
         DiagnosticLog.shared.write(.generationCancelled, operationID: id, fields: .init(stage: "invalidated"))
     }
@@ -617,6 +745,7 @@ final class ManagementSummaryCell: NSTableCellView {
                             self.root.requiredLabel.stringValue = "候选已就绪，请审核后采用。"
                             DiagnosticLog.shared.write(.generationFinished, operationID: operationID, fields: .init(stage: "candidate"))
                             self.persistDraft()
+                            if editor.inlineMode { self.compareInlineCandidate(editor) }
                         } catch {
                             guard let self, self.generationID == operationID else {
                                 DiagnosticLog.shared.write(.generationDiscarded, operationID: operationID, fields: .init(stage: "stale-failure")); return
@@ -629,7 +758,7 @@ final class ManagementSummaryCell: NSTableCellView {
         }
     }
     private func finishGeneration(error: Error, operationID: UUID, stage: String) {
-        generationID = nil; generationTask = nil; root.editor?.generateButton.title = "整理"
+        generationID = nil; generationTask = nil; root.editor?.generateButton.title = root.editor?.inlineMode == true ? "重新生成" : "整理"
         let urlError = error as? URLError
         let message: String
         switch urlError?.code {
@@ -650,7 +779,7 @@ final class ManagementSummaryCell: NSTableCellView {
     }
     private func configureAPIKey() {
         let alert = NSAlert(); alert.messageText = "DeepSeek API key"
-        alert.informativeText = "保存到本机 Keychain。读取链接、聊天和整理时，对应内容会发送给 DeepSeek。"
+        alert.informativeText = "保存到本机 Keychain。读取链接和整理时，对应内容会发送给 DeepSeek。"
         let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 26))
         field.placeholderString = "API key"; field.setAccessibilityLabel("DeepSeek API key"); alert.accessoryView = field
         alert.addButton(withTitle: "保存"); alert.addButton(withTitle: "取消")
@@ -662,9 +791,12 @@ final class ManagementSummaryCell: NSTableCellView {
             DispatchQueue.main.async {
                 guard let self else { return }; self.root.editor?.configureButton.isEnabled = true
                 switch result {
-                case .success: self.root.requiredLabel.stringValue = "API key 已保存到 Keychain。"
+                case .success:
+                    self.root.requiredLabel.stringValue = "API key 已保存到 Keychain。"
+                    self.root.experienceView?.status.stringValue = "API key 已保存到 Keychain。"
                 case .failure(let error):
                     self.root.requiredLabel.stringValue = error.localizedDescription
+                    self.experience?.show(error)
                     let code: Int
                     if case GenerationFailure.keychain(let status) = error { code = Int(status) } else { code = (error as NSError).code }
                     DiagnosticLog.shared.write(.credentialFailed, level: .warning, fields: .init(stage: "keychain-save", systemCode: code))
@@ -674,6 +806,7 @@ final class ManagementSummaryCell: NSTableCellView {
     }
     private func leaveEditor() { showLibrary(category: selectedCategory) }
     func saveEditor() {
+        if let experience, root.page == .experience { root.experienceView?.stashEditor(); experience.save(); return }
         if let experience, reviewID != nil { stashReview(); experience.save(); return }
         guard !isSaving, let editor = root.editor else { return }
         cancelGeneration()
@@ -685,8 +818,10 @@ final class ManagementSummaryCell: NSTableCellView {
             guard let self else { return }; self.isSaving = false; self.setSaving(false)
             switch result {
             case .success(let saved):
-                editor.markSaved(saved); self.selectedEntry = saved; self.root.editor = nil
-                self.showLibrary(category: nil); self.root.footer.stringValue = "已保存"
+                editor.markSaved(saved); self.selectedEntry = saved; self.root.editor = nil; self.root.page = .library
+                if !editor.inlineMode { self.selectedCategory = nil }
+                self.root.libraryView.presentation = .detail; self.refreshLibrary(); self.updateSidebar()
+                self.root.footer.stringValue = "已保存"
             case .failure(let error):
                 self.root.statusLabel.stringValue = "保存失败"; self.root.requiredLabel.stringValue = error.localizedDescription
                 self.root.requiredLabel.textColor = Theme.error; self.persistDraft(updateStatus: false)
@@ -710,7 +845,7 @@ final class ManagementSummaryCell: NSTableCellView {
     }
     func prepareForTermination(_ completion: @escaping (Bool) -> Void) {
         if let experience {
-            stashReview()
+            root.experienceView?.stashEditor(); stashReview()
             Task { do { try await experience.finish(); completion(true) } catch { self.root.footer.stringValue = "草稿保存失败，输入已保留。"; completion(false) } }
             return
         }
@@ -726,6 +861,7 @@ final class ManagementSummaryCell: NSTableCellView {
         root.saveButton.isEnabled = !saving; root.cancelButton.isEnabled = !saving
         ([root.all, root.stats] + root.categoryItems).forEach { $0.isEnabled = !saving }
         root.editor?.setEditingEnabled(!saving)
+        root.libraryView.navigationEnabled = !saving; root.backButton.isEnabled = !saving
     }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         prepareForTermination { [weak self] success in if success { self?.window?.orderOut(nil) } }
@@ -771,22 +907,33 @@ extension ManagementWindowController {
         controller.onChange = { [weak self, weak controller] in
             guard let self, let controller, self.experience === controller else { return }
             self.root.experienceView?.update(); self.setSaving(controller.saving)
-            if self.root.page == .experience { self.root.title.stringValue = controller.session.items.isEmpty ? (controller.session.manualPrompt == nil ? "新增经验" : "手动填写") : "整理经验" }
+            if self.root.page == .experience {
+                self.root.title.stringValue = controller.session.items.isEmpty && self.root.experienceView?.completedCount == 0 ? (controller.isManualEntry ? "手动填写" : "新增经验") : "整理经验"
+                self.root.subtitle.stringValue = controller.session.items.isEmpty ? "草稿自动保存在本机" : "\(controller.session.items.count) 条经验 · 本地草稿"
+                self.root.saveButton.title = "保存已确认 \(controller.session.confirmed.count) 条"
+                self.root.saveButton.isEnabled = !controller.busy && !controller.saving && !controller.session.confirmed.isEmpty
+                self.root.needsLayout = true
+            }
             self.root.requiredLabel.stringValue = controller.status
             if self.reviewID != nil { self.root.saveButton.title = "保存已确认 \(controller.session.confirmed.count) 条" }
         }
-        controller.onReview = { [weak self] in self?.presentExperienceReview(index: 0) }
+        controller.onReview = { [weak self] in self?.root.experienceView?.update() }
         controller.onSaved = { [weak self, weak controller] saved in
             guard let self, let controller else { return }
             self.root.editor = nil; self.reviewID = nil
+            self.selectedEntry = saved.first
             if controller.session.items.isEmpty {
-                self.experience = nil; self.root.experienceView = nil; self.root.page = .library
-                self.selectedEntry = saved.first; self.showLibrary(category: nil); self.root.footer.stringValue = "已保存 \(saved.count) 条经验"
-            } else { self.backToExperience() }
+                self.root.experienceView?.showCompletion(saved.count)
+                self.root.title.stringValue = "整理经验"; self.root.subtitle.stringValue = "0 条待整理经验"
+                self.root.saveButton.title = "已保存"; self.root.saveButton.isEnabled = false
+            }
+            self.root.needsLayout = true
         }
-        root.experienceView = ExperienceView(controller: controller)
+        root.experienceView = ExperienceView(controller: controller, categories: counts)
         root.experienceView?.onConfigure = { [weak self] in self?.configureAPIKey() }
+        root.experienceView?.onBack = { [weak self] in self?.leaveEditor() }
         root.page = .experience; root.title.stringValue = "新增经验"; root.needsLayout = true
+        controller.onChange?()
     }
     private func stashReview() {
         guard let experience, let id = reviewID, let editor = root.editor else { return }
@@ -834,7 +981,7 @@ extension ManagementWindowController {
     }
     private func finishExperience(_ completion: @escaping () -> Void) {
         guard let experience, !experience.saving else { return }
-        stashReview()
+        root.experienceView?.stashEditor(); stashReview()
         Task { [weak self] in
             guard let self else { return }
             do {

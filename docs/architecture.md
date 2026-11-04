@@ -26,6 +26,7 @@ macOS/
 │   │   ├── DetailDocument.swift      # 单容器分段详情、原生文本选择
 │   │   ├── DesignUI.swift            # Figma 资源、面板、分段控件与文本
 │   │   ├── ManagementWindow.swift    # 管理导航、列表、预览与保存协调
+│   │   ├── ManagementGrid.swift      # 摘要卡片集合、按 ID 打开与滚动恢复
 │   │   ├── PromptEditor.swift        # 独立字段与本地草稿编辑
 │   │   ├── UsageDashboard.swift      # 真实本地计次、趋势与排行
 │   │   └── PageTransition.swift      # 内容视口方向性过渡与快照清理
@@ -60,6 +61,10 @@ UI 通过请求代次丢弃迟到结果，加载期间禁止插入旧详情，�
 `ManagementWindowController` 复用同一 `PromptLibrary`，提供列表、预览、标题／简述查询及 `PromptEditorView`；长文本使用可撤销的原生 `NSTextView`。管理窗口为 titled/fullSizeContentView 原生窗口，保留红黄绿系统按钮，并通过 fullScreenPrimary 进入独立 Space。打开管理窗口时切换 regular 应用身份，显式设置自家 AppIcon；Dock 重开返回管理窗口。关闭通过 delegate 保存草稿后隐藏。创建／编辑在事务中验证必填和分类；重试使用原 UUID，编辑对比原快照拒绝过期覆盖。成功提交后发送通知，管理页与浮窗重新查询，按 ID 保留有效选择。
 
 伴随 `library-activity.sqlite3` 通过同一串行连接按需 ATTACH，保存编辑草稿和成功使用事件；主内容 schema 仍为 v1。自动草稿、切页、关闭及退出均保留未完成输入，失败不关闭表单。退出先取消当前终止请求，完成草稿和队列排空后再次终止，避免 terminateLater 的 MainActor 回调死锁。`UsageDashboard` 只聚合实际成功复制及完整回读确认插入的事件，内部粘贴不重复计次。
+
+V7 管理页默认使用 `NSCollectionView` 摘要网格，只读取标题、简述、分类及来源；点选稳定 ID 后才查正文。网格和阅读列表共享精确分类＋搜索查询与代次防护。原位 `PromptEditorView` 挂在同一详情容器，保存后保持有效筛选、选择与滚动。返回网格不再重新读取正文。窗口缩放先更新详情容器，再布局编辑器与其底部动作，避免最小尺寸使用上一帧宽度。
+
+`ExperienceView` 将现有 `ExperienceController` 的候选、建议及确认直接绑定到右侧嵌入编辑器。查看条目不创建候选，文字变化才更新；先写入最新候选再触发取消回调，防止同步回调重建旧编辑器并丢失焦点。Checkbox 仅控制生成子集，保存只接受 confirmed 集合。部分保存后列表、分母、当前 ID 和草稿共同来自剩余 session，全部保存显示完成状态。`manualEntry` 是可选 JSON 字段，旧草稿缺省沿用 manualPrompt 的旧判断；切换录入方式只改该标记，保留原文和已贴 Prompt。没有 SQLite schema 迁移或新网络接口。
 
 
 ## 插入路径与限制

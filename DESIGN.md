@@ -49,6 +49,10 @@ typography:
     fontFamily: system-ui
     fontSize: 14px
     fontWeight: 500
+  management-card-title:
+    fontFamily: system-ui
+    fontSize: 17px
+    fontWeight: 500
   body:
     fontFamily: system-ui
     fontSize: 13px
@@ -137,6 +141,12 @@ components:
     typography: "{typography.row}"
     rounded: "{rounded.row}"
     height: 80px
+  management-summary-card:
+    backgroundColor: "{colors.shell}"
+    textColor: "{colors.text}"
+    typography: "{typography.management-card-title}"
+    rounded: 14px
+    height: 178px
   management-reading-panel:
     backgroundColor: "{colors.panel}"
     textColor: "{colors.text}"
@@ -177,6 +187,11 @@ components:
     textColor: "{colors.text}"
     rounded: "{rounded.row}"
     height: 52px
+  experience-workbench-row:
+    textColor: "{colors.text}"
+    typography: "{typography.reading}"
+    rounded: "{rounded.row}"
+    height: 70px
   experience-checkbox:
     rounded: "{rounded.checkbox}"
     size: 18px
@@ -343,6 +358,18 @@ V6 取消聊天，原文／链接一键整理。每条经验分开保留只读�
 经验列表行高 52 pt、行间距 4 pt；当前经验行使用 `selection` 与 `row` 圆角。文字只切换当前条；18 pt 方框位于 44 pt 点击区中，只更新勾选与计数，不切换当前条。文字为 15 pt 系统字体，完整标题由 tooltip 保留；勾选态提供复选框辅助功能角色和值。当前条高亮与勾选分别表达两种状态；已勾选条目有空 Prompt 时明确提示并阻止审核。
 
 审核沿用现有字段和分段。标题、分类、简述、Prompt 和整理说明可编辑，作者原文与来源只读；点左侧待保存条目切换前保留当前修改。保存数量来自当前勾选，事务成功后才显示成功。来源标识使用本地 `SourceX.svg`、`SourceGitHub.svg`、`SourceReddit.svg` 的 16 pt 模板图标，其他来源回退链接符号；来源入口保留完整来源 tooltip。垃圾桶位于已有条目预览的操作区，确认弹窗点名待删标题并提供取消；不以划过或选中条目触发删除。
+
+### V7 Summary Cards and Workbench
+
+V7 是既有深色体系的局部延伸，采用以下组件；前述 V6 录入／审核记录保留作历史对照，不作为 V7 的布局约定。全局颜色、字体家族、面板、控件与十五色顺序继续沿用。
+
+`management-summary-card` 用于内容库摘要卡片，使用 `shell`、细灰边与局部圆角；选中时只提亮边界，不增加抬升或面板柔光。标题采用 `management-card-title`、最多两行，简述沿用 `body` 的字体与辅助灰；顶部保留分类名称和既有分类柔光点，来源操作独立于打开卡片。卡片间距采用 `section`，网格实际内容宽度至少 1000 pt 时三列，否则两列；高度与圆角由前置组件 token 定义。点按或对选中卡片按 Return 后才加载完整正文。
+
+已有条目阅读和原位编辑复用同一列表／详情容器，保留分类、搜索、稳定 ID 和网格滚动。紧凑编辑器把标题／分类并排、简述置下，随后是阅读分段和大正文；保存／取消留在编辑区域底部，不增加独立编辑页面。
+
+单条和多条经验共用工作台：左列最多 300 pt，与右侧紧凑编辑器间隔 `panel-gap`；原文可折叠、来源独立只读，Prompt 占主要编辑区域。`experience-workbench-row` 比历史经验行多一行 `caption` 状态；标题沿用 `reading` 字体，当前条使用 `selection`，复选框沿用 `experience-checkbox` 和原有 44 pt 点击区。点文字只切换查看，勾选只决定批量生成集合，人工确认是独立操作；修改已确认内容会恢复待确认。状态和剩余数量由实际条目驱动，部分保存后继续留在同一工作台。
+
+本节依据 `ManagementGrid.swift`、`ExperienceView.swift` 与 `PromptEditor.swift`，并对照 `.impeccable/review/v7-port/` 中的 `management-library.png`、`management-grid-minimum.png`、`management-inline-editor.png` 和 `experience-organize.png`。实现与本轮既有测试报告见 [V7 原生移植记录](docs/management-v7-implementation.md)；本次文档补录没有重跑客户端、真实 API、Codex 插入、VoiceOver 或 Reduce Motion。侧车新增组件仅是静态预览，不替代原生焦点、分类柔光资源或状态逻辑。
 
 ### Feedback
 

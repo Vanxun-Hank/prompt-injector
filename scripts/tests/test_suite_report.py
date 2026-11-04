@@ -23,6 +23,9 @@ class SuiteReportTests(unittest.TestCase):
                   'keyboard/blocked-command-return-no-route','keyboard/recovered-command-return-routes']
         names += ['capture/management-'+n for n in ['library','editor','original','save-error','statistics','minimum','candidate','new-category','sixth-statistics','reading-original','reading-explanation','categories-scroll','delete-confirmation','comparison','category-create']]
         names += ['categories/blank-name-stays-inline', 'management/delete-default-is-cancel', 'experience/confirm-action-visible']
+        names += ['v7/'+n for n in ['grid-default-and-three-columns','grid-minimum-two-columns','edit-stays-in-preview','inline-minimum-fields-fit','unified-workbench','all-saved-without-resurrected-input','saved-card-immediately-available','partial-save-1','partial-save-5','partial-save-20','completed-one','remaining-draft-5','remaining-draft-20']]
+        names += ['capture/management-inline-editor','capture/management-inline-minimum','capture/management-grid-minimum','capture/v7-partial-1','capture/v7-partial-5','capture/v7-partial-20']
+        names += ['v7/input-validation-near-field', 'v7/input-mode-retains-prompt', 'capture/experience-input-error']
         names += ['generation/candidate-is-editable', 'generation/candidate-does-not-overwrite', 'generation/adoption-preserves-original-source',
                   'categories/new-name-entire-control-visible', 'categories/sixth-sidebar-preview', 'categories/sixth-launcher-list', 'categories/sixth-launcher-full-prompt', 'categories/sixth-statistics']
         names += ['reading/prompt-only-verbatim', 'reading/original-source-verbatim', 'reading/explanation-only', 'categories/growing-sidebar-scroll']
@@ -55,4 +58,9 @@ class SuiteReportTests(unittest.TestCase):
         report = self.valid_report()
         self.assertTrue(suite.validate_ui_report(report))
         report['checks'] = [c for c in report['checks'] if c['name'] != 'experience/checkbox-does-not-discuss']
+        self.assertFalse(suite.validate_ui_report(report))
+
+    def testMissingV7EvidenceCannotReuseEarlierManagementPass(self):
+        report = self.valid_report()
+        report['checks'] = [c for c in report['checks'] if c['name'] != 'v7/unified-workbench']
         self.assertFalse(suite.validate_ui_report(report))

@@ -1,6 +1,16 @@
 # 客户端回归测试套件
 
-## 2026-11-04 · 管理 UI 修复 / v0.5.1 · 最新
+## 2026-11-04 · V7 完整移植 / v0.6.0 · 最新
+
+自运行 `python3 scripts/verify-management-v7.py` 实际执行约定的 `python3 scripts/test-suite.py`，通过 **125 Swift、10 Python、199 原生检查、43 张 PNG**。报告 `artifacts/tests/20261104T041850.632250Z/summary.json`；隔离包 `build/Management-V7-Review/Prompt Injector.app`，build `20261104T041900Z`，指纹 `9c54dd763ca0a67d10dc8e15d1d8f4a990911aa8623292d482c9e1d7cd0fe264`。运行时所有截图首次成功；前次截图失败报告保留，没有用旧图补过。
+
+新增 ManagementV7Tests 覆盖摘要网格、原位编辑筛选和滚动、单／五／二十条模拟生成确认后部分保存重开、手改取消与迟到响应、录入方式往返恢复及候选显式采用。原生追加默认／最小网格、内嵌编辑布局、字段就地错误和剩余0／4／19；套件自身拒绝缺失V7检查或截图。修改前后的布局与运行限制见 [完整记录](management-v7-implementation.md)。
+
+本轮没有请求真实 DeepSeek、真实 Codex 插入或物理断网，保留历史验收范围；VoiceOver、系统 Reduce Motion 和最低macOS兼容性未重验。不将模拟、路由和截图宣称为系统插入成功。安装后两库的比对与恢复位置见完整记录。
+
+独立完整原生复核 ship；第一次截图裁切判 recapture，未当通过使用，修复验证窗口放置后全量重跑。随后安装同一包并实际打开，PID71851／build20261104T041900Z与常用路径一致；原3条草稿恢复，两库规范化摘要不变。旧包及两库备份 `~/Library/Application Support/Prompt Injector/Backups/before-v060-20261104T041802Z/`，证据 `artifacts/installation/v060/report.json`。
+
+## 2026-11-04 · 管理 UI 修复 / v0.5.1 · 历史
 
 完整运行 `python3 scripts/test-suite.py`：**119 Swift、9 Python、165 原生检查、36 张 PNG** 通过。最终报告 `artifacts/tests/20261104T032656.681208Z/summary.json`；审查包 `build/Management-Fixes-Review/Prompt Injector.app`，build `20261104T032707Z`，source `3bd744da77a239d24cd1f86bc183cfef29a40180ebaf6ef9f6607960456bf546`，版本0.5.1。完整测试在隔离临时库运行，不修改正式数据。
 

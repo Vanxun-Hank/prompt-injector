@@ -31,18 +31,36 @@ extension AppDelegate {
         let manager = ManagementWindowController(library: library, experienceService: ExperienceFixtureService())
         guard let window = manager.window else { return [["name": "experience/window", "passed": false]] }
         manager.show(); window.setContentSize(NSSize(width: 1440, height: 960))
-        func capture(_ name: String) async {
-            window.contentView?.layoutSubtreeIfNeeded(); window.makeKeyAndOrderFront(nil)
-            try? await Task.sleep(nanoseconds: 180_000_000)
-            let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-            p.arguments = ["-x", "-o", "-l", String(window.windowNumber), output + "/" + name + ".png"]
-            do { try p.run(); p.waitUntilExit(); check("capture/" + name, p.terminationStatus == 0) }
-            catch { check("capture/" + name, false) }
+        func capture(_ name: String, target: NSWindow? = nil) async {
+            let window = target ?? window
+            if let screen = NSScreen.screens.first(where: { $0.visibleFrame.width >= window.frame.width && $0.visibleFrame.height >= window.frame.height }) {
+                let area = screen.visibleFrame
+                window.setFrameOrigin(NSPoint(x: area.midX - window.frame.width / 2, y: area.midY - window.frame.height / 2))
+                check("capture-placement/" + name, area.contains(window.frame))
+            }
+            window.contentView?.layoutSubtreeIfNeeded(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+            window.displayIfNeeded()
+            var captured = false, attempts = 0
+            // Newly created WindowServer surfaces can reject the first capture; retry only the image, never the checks.
+            for attempt in 1...3 {
+                attempts = attempt
+                try? await Task.sleep(nanoseconds: 180_000_000)
+                let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+                p.arguments = ["-x", "-o", "-l", String(window.windowNumber), output + "/" + name + ".png"]
+                do { try p.run(); p.waitUntilExit(); captured = p.terminationStatus == 0 } catch { captured = false }
+                if captured { break }
+            }
+            checks.append(["name": "capture/" + name, "passed": captured, "attempts": attempts,
+                           "frame": NSStringFromRect(window.frame), "visible": window.isVisible,
+                           "activeSpace": window.isOnActiveSpace, "windowNumber": window.windowNumber])
         }
         manager.root.newButton.performClick(nil)
         await until { manager.root.experienceView != nil }
         guard let model = manager.experience, let view = manager.root.experienceView else { return checks }
         await capture("experience-new")
+        view.send.performClick(nil)
+        check("v7/input-validation-near-field", !view.inputError.isHidden && window.firstResponder === view.input.text && !model.busy)
+        await capture("experience-input-error")
         view.input.text.string = ExperienceFixtureService.raw; view.textDidChange(Notification(name: NSText.didChangeNotification, object: view.input.text))
         view.sourceField.stringValue = "https://x.com/HiTw93/status/2115366100221501540"; view.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
         view.send.performClick(nil); await until { !model.busy && model.session.items.count == 2 }
@@ -57,8 +75,8 @@ extension AppDelegate {
         check("experience/checkbox-does-not-discuss", model.current?.id == first && model.session.items[1].selected && model.current?.messages.isEmpty == true)
         await capture("experience-organize")
         window.setContentSize(NSSize(width: 1100, height: 720)); window.contentView?.layoutSubtreeIfNeeded()
-        check("experience/prompt-and-original-fit-minimum", view.prompt.frame.height >= 150 && view.content.frame.maxX <= view.bounds.width && view.prompt.frame.maxY <= view.content.bounds.height)
-        check("experience/fixed-input-minimum", view.organize.frame.maxY <= view.panel.bounds.height && view.generate.frame.maxX <= view.content.bounds.width)
+        check("experience/prompt-and-original-fit-minimum", (view.editor?.promptText.frame.height ?? 0) >= 150 && (view.editor?.frame.maxX ?? 0) <= view.bounds.width)
+        check("experience/fixed-input-minimum", view.bounds.contains(view.organize.frame) && view.bounds.contains(view.generate.frame))
         await capture("experience-minimum")
         try? await model.finish()
         let resumed = try? repository.experienceDraft()
@@ -66,31 +84,33 @@ extension AppDelegate {
         model.changePrompt(""); model.toggle(first)
         model.confirm(first)
         check("experience/empty-prompt-blocks-review", model.failed && model.session.confirmed.isEmpty && model.reviewItems.contains { $0.id == first })
-        model.changePrompt("用户粘贴的 Prompt"); view.organize.performClick(nil)
-        await until { manager.root.editor?.reviewMode == true }
+        model.changePrompt("用户粘贴的 Prompt"); view.update()
         window.setContentSize(NSSize(width: 1440, height: 960)); window.contentView?.layoutSubtreeIfNeeded()
-        guard let editor = manager.root.editor else { check("experience/review-open", false); window.orderOut(nil); return checks }
+        guard let editor = view.editor else { check("experience/review-open", false); window.orderOut(nil); return checks }
         check("experience/review-source-readonly", !editor.originalText.text.isEditable && !editor.sourceField.isEditable)
-        check("experience/confirm-action-visible", !editor.nextButton.isHidden && editor.nextButton.superview === editor.content && editor.content.bounds.contains(editor.nextButton.frame))
-        editor.titleField.stringValue = "审核后的短标题"; editor.summaryText.text.string = "有硬性规则时使用"; editor.explanationText.text.string = "保留方法与条件"; editor.addCategory(); editor.categoryChooser?.nameField.stringValue = "学习与整理"; editor.categoryChooser?.createButton.performClick(nil); editor.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+        check("experience/confirm-action-visible", !view.organize.isHidden && view.bounds.contains(view.organize.frame))
+        check("v7/unified-workbench", manager.root.page == .experience && manager.root.editor == nil && editor.workbenchMode)
+        editor.titleField.stringValue = "审核后的短标题"; editor.summaryText.text.string = "有硬性规则时使用"; editor.explanationText.text.string = "保留方法与条件"
+        editor.addCategory(); editor.categoryChooser?.nameField.stringValue = "学习与整理"; editor.categoryChooser?.createButton.performClick(nil)
+        editor.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
         await capture("experience-review")
-        editor.reviewList.selectRowIndexes(IndexSet(integer: 1), byExtendingSelection: false)
-        check("experience/audit-list-stashes-edits", manager.root.editor !== editor)
-        manager.root.editor?.reviewList.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-        guard let editor = manager.root.editor else { check("experience/audit-list-return", false); return checks }
+        view.choose(model.session.items[1].id)
+        check("experience/audit-list-stashes-edits", view.editor !== editor)
+        view.choose(first)
+        guard let editor = view.editor else { check("experience/audit-list-return", false); return checks }
         check("experience/audit-list-restores-edits", editor.titleField.stringValue == "审核后的短标题")
         window.setContentSize(NSSize(width: 1100, height: 720)); window.contentView?.layoutSubtreeIfNeeded()
-        check("experience/audit-fields-fit-minimum", editor.titleField.superview?.frame.minX == 24 && editor.promptText.frame.height >= 150 && editor.reviewListScroll.frame.maxY <= editor.info.bounds.height)
+        check("experience/audit-fields-fit-minimum", editor.workbenchMode && editor.promptText.frame.height >= 150 && view.bounds.contains(view.listScroll.convert(view.listScroll.bounds, to: view)))
         await capture("experience-review-minimum")
         window.setContentSize(NSSize(width: 1440, height: 960)); window.contentView?.layoutSubtreeIfNeeded()
-        editor.segments.selectedIndex = 1; editor.needsLayout = true; await capture("experience-original")
+        editor.originalToggle.performClick(nil); await capture("experience-original")
         check("experience/review-original-verbatim", editor.originalText.text.string == model.session.items[0].original)
         let original = editor.reviewOriginal
         let glyphs = original.text.layoutManager.flatMap { manager in original.text.textContainer.map { manager.usedRect(for: $0) } } ?? .zero
-        checks.append(["name": "experience/original-visible", "passed": !editor.reviewOriginalScroll.isHidden && original.text.visibleRect.intersects(glyphs),
-                       "textFrame": NSStringFromRect(original.text.frame), "visibleRect": NSStringFromRect(original.text.visibleRect),
-                       "glyphRect": NSStringFromRect(glyphs), "clipBounds": NSStringFromRect(editor.reviewOriginalScroll.contentView.bounds)])
-        manager.confirmExperienceReview(); manager.confirmExperienceReview(); manager.saveEditor(); await until { manager.experience == nil && manager.selectedEntry != nil }
+        check("experience/original-visible", !editor.reviewOriginalScroll.isHidden && original.text.visibleRect.intersects(glyphs))
+        view.confirmCurrent(); view.confirmCurrent(); manager.saveEditor()
+        await until { !model.saving && view.completedCount == 2 }
+        check("v7/all-saved-without-resurrected-input", model.session.items.isEmpty && view.editor == nil && !manager.root.saveButton.isEnabled)
         let saved = try? repository.managedSummaries(category: nil, query: "审核后的短标题")
         check("experience/batch-saved-with-sixth-category", saved?.count == 1 && (try? repository.categories().count) == 6)
         check("experience/draft-not-resurrected-after-save", (try? repository.experienceDraft()) == nil)
@@ -100,6 +120,9 @@ extension AppDelegate {
             await until { launcher.launcher.currentEntry?.id == entry.id }
             check("experience/saved-immediately-loads-in-launcher", launcher.launcher.currentEntry?.prompt == entry.prompt)
             launcher.window?.orderOut(nil)
+            view.backButton.performClick(nil); await until { manager.root.page == .library && manager.root.libraryView.items.contains { $0.summary.id == entry.id } }
+            manager.root.libraryView.openItem(id: entry.id); await until { manager.selectedEntry?.id == entry.id }
+            check("v7/saved-card-immediately-available", manager.selectedEntry == entry)
             manager.confirmDeletion = { _ in false }; manager.deleteSelected()
             check("experience/delete-cancel-keeps-entry", (try? repository.entry(id: entry.id, category: entry.categoryID)) != nil)
             manager.confirmDeletion = { _ in true }; manager.deleteSelected(); await until { !manager.isSaving }
@@ -112,10 +135,33 @@ extension AppDelegate {
             manualView.prompt.text.string = "自己粘贴的明确指令"; manualView.textDidChange(Notification(name: NSText.didChangeNotification, object: manualView.prompt.text))
             window.setContentSize(NSSize(width: 1440, height: 960)); await capture("experience-manual")
             window.setContentSize(NSSize(width: 1100, height: 720)); await capture("experience-manual-minimum")
-            check("experience/manual-pair-fit", manualView.input.frame.maxX < manualView.prompt.frame.minX && manualView.prompt.frame.maxX <= manualView.content.bounds.width && manualView.prompt.frame.height >= 300)
+            check("experience/manual-pair-fit", manualView.input.frame.maxX < manualView.prompt.frame.minX && manualView.prompt.frame.maxX <= manualView.content.bounds.width && manualView.prompt.frame.height >= 200)
+            manualView.automatic.performClick(nil)
+            check("v7/input-mode-retains-prompt", !manualModel.isManualEntry && manualModel.session.manualPrompt == "自己粘贴的明确指令")
+            manualView.manual.performClick(nil)
             manualView.send.performClick(nil)
-            check("experience/manual-paste-skips-generation", manager.root.editor?.promptText.text.string == "自己粘贴的明确指令" && manualModel.current?.original == "手动录入的作者原文" && !manualModel.busy)
+            check("experience/manual-paste-skips-generation", manager.root.experienceView?.editor?.promptText.text.string == "自己粘贴的明确指令" && manualModel.current?.original == "手动录入的作者原文" && !manualModel.busy)
             try? await manualModel.finish()
+        }
+        for count in [1, 5, 20] {
+            let dir = parent.appendingPathComponent("v7-\(count)/library.sqlite3")
+            let repo = SQLitePromptRepository(url: dir), local = PromptLibrary(repository: repo)
+            let form = ManagementWindowController(library: local, experienceService: ExperienceFixtureService())
+            form.show(); form.window?.setContentSize(NSSize(width: 1440, height: 960))
+            await until { form.root.categoryItems.count == 5 }
+            var session = ExperienceSession(); session.raw = (0..<count).map { "作者原文\($0)。" }.joined(separator: "\n")
+            session.input = session.raw; session.source = "https://x.com/author/status/1"
+            session.items = (0..<count).map { i in .init(title: "经验\(i)", original: "作者原文\(i)。", candidate: .init(title: "验证经验\(i)", summary: "符合原文条件时", explanation: "保留方法与适用条件。", prompt: "执行第\(i)条明确指令。", categoryID: "coding", newCategoryName: nil)) }
+            session.currentID = session.items[0].id; form.presentExperience(session)
+            guard let workspace = form.root.experienceView, let model = form.experience else { check("v7/workspace-\(count)", false); continue }
+            workspace.confirmCurrent(); form.root.saveButton.performClick(nil)
+            await until { !model.saving }
+            check("v7/partial-save-\(count)", model.session.items.count == count - 1 && workspace.selectedCount.stringValue == "已勾选 0 / \(count - 1)")
+            if count > 1 {
+                check("v7/remaining-draft-\(count)", (try? repo.experienceDraft()?.items.count) == count - 1 && workspace.editor?.id == session.items[1].id)
+            } else { check("v7/completed-one", workspace.completedCount == 1 && (try? repo.experienceDraft()) == nil) }
+            await capture("v7-partial-\(count)", target: form.window)
+            try? await model.finish(); form.window?.orderOut(nil)
         }
         await withCheckedContinuation { continuation in library.flush { continuation.resume() } }
         window.orderOut(nil)
