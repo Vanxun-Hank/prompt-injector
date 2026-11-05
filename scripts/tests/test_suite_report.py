@@ -33,6 +33,9 @@ class SuiteReportTests(unittest.TestCase):
                   'experience/reopen-independent-prompts', 'experience/batch-saved-with-sixth-category',
                   'experience/saved-immediately-loads-in-launcher', 'experience/deleted-entry-no-longer-loads']
         names += ['capture/experience-'+n for n in ['organize','minimum','review','original','new','manual','manual-minimum','review-minimum']]
+        names += ['management/'+n for n in ['icon-copy-feedback','copy-all-reading-tabs','icon-actions-keyboard-focus','direct-actions-search','direct-actions-category']]
+        names += ['workbench/'+n for n in ['compact-completion','add-keeps-list-and-focus','view-existing-while-adding','append-source-visible','context-remove-keeps-current','edited-removal-cancel-keeps-draft','removal-selects-adjacent','remove-last-empties-detail','continue-from-empty','continue-after-save']]
+        names += ['workbench/removed-clears-old-save-count','capture/workbench-complete','capture/workbench-addition-minimum']
         names += [f'check/{i}' for i in range(90-len(names))]
         return {'passed':True,'checks':[{'name':n,'passed':True} for n in names]}
     def testFailingAnimationCannotBeHiddenByTopLevelPassedFlag(self):
@@ -63,4 +66,9 @@ class SuiteReportTests(unittest.TestCase):
     def testMissingV7EvidenceCannotReuseEarlierManagementPass(self):
         report = self.valid_report()
         report['checks'] = [c for c in report['checks'] if c['name'] != 'v7/unified-workbench']
+        self.assertFalse(suite.validate_ui_report(report))
+
+    def testMissingContinuationEvidenceCannotReuseEarlierWorkbenchPass(self):
+        report = self.valid_report()
+        report['checks'] = [c for c in report['checks'] if c['name'] != 'workbench/continue-after-save']
         self.assertFalse(suite.validate_ui_report(report))

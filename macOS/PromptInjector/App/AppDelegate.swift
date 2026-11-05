@@ -54,6 +54,10 @@ import Carbon
         applicationLibrary = library
         controller = LauncherWindowController(library: library)
         setupMenu()
+        if verificationDatabaseDirectory != nil, CommandLine.arguments.contains("--qa-workbench") {
+            management = ManagementWindowController(library: library, experienceService: ExperienceFixtureService())
+            management?.show(); return
+        }
         if !CommandLine.arguments.contains("--verify-ui") { registerShortcut() }
         if CommandLine.arguments.contains("--manage") { openManagement() }
         else if !CommandLine.arguments.contains("--start-hidden") {

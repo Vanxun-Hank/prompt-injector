@@ -3,6 +3,15 @@ import AppKit
 @testable import PromptInjector
 
 final class ManagementV7Tests: XCTestCase {
+    @MainActor func testCompletionDoesNotLeaveAnEmptyListOrStaleEditor() {
+        let model = ExperienceController(session: ExperienceSession(), library: PromptLibrary(repository: SQLitePromptRepository(url: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))), service: ControlledExperienceService())
+        let view = ExperienceView(controller: model)
+        view.showCompletion(1)
+        XCTAssertTrue(view.panel.isHidden)
+        XCTAssertNil(view.editor)
+        XCTAssertTrue(view.input.isHidden)
+    }
+
     @MainActor func testInlineCandidateNeedsExplicitAdoptionAndHiddenEditorHasFiniteGeometry() {
         _ = NSApplication.shared
         let entry = GenerationTests().entry(), candidate = GenerationTests().candidate

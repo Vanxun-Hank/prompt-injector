@@ -1,6 +1,10 @@
 # 客户端回归测试套件
 
-## 2026-11-04 · V7 完整移植 / v0.6.0 · 最新
+## 2026-11-06 · 工作台连续处理 / v0.6.1 · 最新
+
+完整 `python3 scripts/test-suite.py` 通过 **130 Swift、11 Python、219 原生检查、45 张 PNG**。最终报告 `artifacts/tests/20261105T165642.770128Z/summary.json`，审查包 `build/Workbench-Continuity-Review/Prompt Injector.app`，build `20261105T165652Z`。覆盖 20→17、运行和排队移除、两篇来源与生成上下文、失败/取消/重开、完成和部分保存、三种入口的详情图标与三个 Tab 的完整复制。真实鼠标键盘使用隔离夹具；系统插入与真实模型未复验。失败复现、实际安装、快照及回滚见 [连续处理](workbench-continuity.md)。
+
+## 2026-11-04 · V7 完整移植 / v0.6.0 · 历史
 
 自运行 `python3 scripts/verify-management-v7.py` 实际执行约定的 `python3 scripts/test-suite.py`，通过 **125 Swift、10 Python、199 原生检查、43 张 PNG**。报告 `artifacts/tests/20261104T041850.632250Z/summary.json`；隔离包 `build/Management-V7-Review/Prompt Injector.app`，build `20261104T041900Z`，指纹 `9c54dd763ca0a67d10dc8e15d1d8f4a990911aa8623292d482c9e1d7cd0fe264`。运行时所有截图首次成功；前次截图失败报告保留，没有用旧图补过。
 

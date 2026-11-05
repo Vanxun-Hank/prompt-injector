@@ -57,6 +57,7 @@ final class EditorText: SurfaceView {
     let configureButton = ActionButton(title: "", symbol: "key", target: nil, action: nil)
     let adoptButton = ActionButton(title: "采用候选", symbol: "checkmark", target: nil, action: nil)
     let candidateEditor = GeneratedPromptEditor()
+    let removeExperience = ActionButton(title: "", symbol: "trash", target: nil, action: nil)
     private var creatingCategory = false
     private(set) var categoryChooser: CategoryPopover?
     let info = SurfaceView(color: Theme.shell), content = SurfaceView(color: Theme.shell, border: Theme.hex(0x626262))
@@ -154,6 +155,10 @@ final class EditorText: SurfaceView {
             categoryButton.cell?.wraps = false; categoryButton.cell?.lineBreakMode = .byTruncatingTail
             if workbenchMode { originalText.text.isEditable = false; sourceField.isEditable = false }
             if workbenchMode { content.addSubview(reviewOriginalScroll) }
+        }
+        if workbenchMode {
+            content.addSubview(removeExperience); removeExperience.outlined = true
+            removeExperience.toolTip = "移除这条草稿经验"; removeExperience.setAccessibilityLabel("移除这条草稿经验")
         }
         sourceField.maximumNumberOfLines = 1; sourceField.lineBreakMode = .byTruncatingTail; sourceField.cell?.wraps = false
         sourceField.toolTip = draft.entry.source; clearValidation()
@@ -397,9 +402,11 @@ final class EditorText: SurfaceView {
             reviewOriginal.arrange(width: reviewOriginalScroll.contentSize.width)
             tabsY = originalBand.frame.maxY + 12
         }
-        segments.frame = NSRect(x: 24, y: tabsY, width: min(workbenchMode ? 220 : 344, w - 208), height: 36)
+        let removeSpace: CGFloat = workbenchMode ? 48 : 0
+        segments.frame = NSRect(x: 24, y: tabsY, width: min(workbenchMode ? 220 : 344, w - 208 - removeSpace), height: 36)
         generateButton.isHidden = false
-        generateButton.frame = NSRect(x: w - 160, y: tabsY, width: 136, height: 36)
+        generateButton.frame = NSRect(x: w - 160 - removeSpace, y: tabsY, width: 136, height: 36)
+        removeExperience.frame = NSRect(x: w - 60, y: tabsY, width: 36, height: 36)
         generateButton.primary = false; generateButton.outlined = true
         [configureButton, previousButton, nextButton, newCategoryBox, newCategoryLabel, promptLabel, originalLabel, explanationLabel, explanationRule, contentRule, candidateEditor, adoptButton].forEach { $0.isHidden = true }
         let textY = tabsY + 48, bottom: CGFloat = inlineMode ? 80 : 20

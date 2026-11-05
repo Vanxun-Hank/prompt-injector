@@ -134,6 +134,17 @@ extension AppDelegate {
         manager.root.libraryView.copyButton.performClick(nil)
         copiedChangeCount = pasteboard.changeCount
         check("management/copy-full-current-prompt", NSPasteboard.general.string(forType: .string) == initial.prompt)
+        check("management/icon-copy-feedback", reading.copyButton.title.isEmpty && reading.copyButton.toolTip == "已复制完整 Prompt")
+        var copiesFullPrompt = true
+        for index in 0..<3 {
+            reading.segments.buttons[index].performClick(nil); reading.copyButton.performClick(nil)
+            copiedChangeCount = pasteboard.changeCount
+            copiesFullPrompt = copiesFullPrompt && pasteboard.string(forType: .string) == initial.prompt
+        }
+        check("management/copy-all-reading-tabs", copiesFullPrompt)
+        check("management/icon-actions-keyboard-focus", [reading.copyButton, reading.editButton, reading.deleteButton].allSatisfy { (button: ActionButton) in
+            button.title.isEmpty && button.frame.size == NSSize(width: 40, height: 40) && button.toolTip != nil && window.makeFirstResponder(button) && window.firstResponder === button
+        })
         manager.root.libraryView.editButton.performClick(nil)
         await until { manager.root.page == .editor && manager.root.editor?.id == initial.id }
         if let editing = manager.root.editor {
@@ -159,6 +170,21 @@ extension AppDelegate {
         manager.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification, object: manager.root.search.field))
         await until { manager.root.libraryView.items.count == 1 }
         check("management/local-search-filters", manager.root.libraryView.items.first?.summary.id == initial.id)
+        for (name, category, query) in [("search", nil as String?, "编辑后 QA"), ("category", initial.categoryID as String?, "")] {
+            manager.root.search.field.stringValue = query; manager.showLibrary(category: category)
+            await until { manager.root.libraryView.items.contains { $0.summary.id == initial.id } }
+            manager.root.libraryView.openItem(id: initial.id)
+            await until { manager.selectedEntry?.id == initial.id }
+            let entry = manager.selectedEntry, originalConfirm = manager.confirmDeletion
+            var askedID: String?
+            manager.confirmDeletion = { askedID = $0.id; return false }
+            reading.deleteButton.performClick(nil); manager.confirmDeletion = originalConfirm
+            reading.copyButton.performClick(nil); copiedChangeCount = pasteboard.changeCount
+            let valid = askedID == initial.id && pasteboard.string(forType: .string) == entry?.prompt
+            reading.editButton.performClick(nil); await until { manager.root.editor?.id == initial.id }
+            check("management/direct-actions-\(name)", valid && manager.root.editor?.inlineMode == true)
+            manager.root.cancelButton.performClick(nil); await until { manager.root.page == .library }
+        }
         manager.root.stats.performClick(nil)
         await until { (manager.root.dashboard?.currentSummary.total ?? 0) >= 2 }
         check("statistics/explicit-success-events-only", (manager.root.dashboard?.currentSummary.copies ?? 0) >= 2 && manager.root.dashboard?.currentSummary.insertions == 0)

@@ -42,13 +42,14 @@ extension SQLitePromptRepository: ExperienceRepository {
             for item in session.confirmed {
                 guard let candidate = item.candidate else { throw GenerationFailure.invalidOutput }
                 try candidate.validate(categories: categories(), requiringDescriptions: false)
-                entries.append(try writeDraft(item.entry(source: session.source)))
+                entries.append(try writeDraft(item.entry(source: session.origin(for: item).source)))
             }
             let payload = String(decoding: try JSONEncoder().encode(session), as: UTF8.self)
             try execute("INSERT INTO activity.experience_archives VALUES(?,?,?)", [session.id, String(session.revision), payload])
-            if session.remaining.items.isEmpty { try execute("DELETE FROM activity.experience_drafts WHERE slot='experience'") }
+            let remaining = session.remaining
+            if !remaining.hasDraft { try execute("DELETE FROM activity.experience_drafts WHERE slot='experience'") }
             else {
-                let rest = String(decoding: try JSONEncoder().encode(session.remaining), as: UTF8.self)
+                let rest = String(decoding: try JSONEncoder().encode(remaining), as: UTF8.self)
                 try execute("UPDATE activity.experience_drafts SET payload=? WHERE slot='experience'", [rest])
             }
             try execute("COMMIT")

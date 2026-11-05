@@ -56,6 +56,11 @@ final class ExperienceRowCell: NSTableCellView {
     }
 }
 
+final class ExperienceTable: NSTableView {
+    var menuForRow: ((Int) -> NSMenu?)?
+    override func menu(for event: NSEvent) -> NSMenu? { menuForRow?(row(at: convert(event.locationInWindow, from: nil))) }
+}
+
 @MainActor final class ExperienceView: FlippedView, NSTextViewDelegate, NSTextFieldDelegate, NSTableViewDataSource, NSTableViewDelegate {
     let controller: ExperienceController
     let panel = SurfaceView(color: Theme.shell, radius: 16)
@@ -73,25 +78,28 @@ final class ExperienceRowCell: NSTableCellView {
     private let sourceLabel = Theme.label("来源（可选）", size: 12, color: Theme.secondary)
     let inputError = Theme.label(size: 11, color: Theme.error), manualPromptError = Theme.label(size: 11, color: Theme.error)
     let generate = ActionButton(title: "生成所选", symbol: nil, target: nil, action: nil)
-    let cancel = ActionButton(title: "取消", symbol: nil, target: nil, action: nil)
+    let cancel = ActionButton(title: "停止任务", symbol: nil, target: nil, action: nil)
+    let add = ActionButton(title: "添加经验", symbol: "plus", target: nil, action: nil)
+    let cancelAdd = ActionButton(title: "取消添加", symbol: nil, target: nil, action: nil)
     let configure = ActionButton(title: "", symbol: "key", target: nil, action: nil)
     let backButton = ActionButton(title: "返回内容库", symbol: nil, target: nil, action: nil)
     let status = Theme.label(size: 12, color: Theme.secondary)
     let count = Theme.label("识别出的经验", size: 14, weight: .medium)
     let selectedCount = Theme.label(size: 12, color: Theme.secondary)
-    let listScroll = NSScrollView(), table = NSTableView()
+    let listScroll = NSScrollView(), table = ExperienceTable()
     let organize = ActionButton(title: "确认并下一条", symbol: nil, primary: true, target: nil, action: nil)
     private let completed = Theme.label(size: 20, weight: .medium)
     private(set) var editor: PromptEditorView?
     private var displayedID: String?, displayedCandidate: GeneratedPrompt?
     private(set) var completedCount = 0
+    var showingInput: Bool { controller.showingInput && completedCount == 0 }
     var categories: [PromptCategory] { didSet { editor?.setCategories(categories) } }
     var onConfigure: (() -> Void)?, onBack: (() -> Void)?
     init(controller: ExperienceController, categories: [PromptCategory] = []) {
         self.controller = controller; self.categories = categories; super.init(frame: .zero)
-        [panel, content, status, cancel, configure, generate, organize, backButton, send].forEach(addSubview)
+        [panel, content, completed, status, cancel, configure, generate, organize, backButton, send, add, cancelAdd].forEach(addSubview)
         [count, listScroll, selectedCount].forEach(panel.addSubview)
-        [heading, input, sourceBox, sourceLabel, promptHeading, manualPrompt, manual, automatic, completed, inputError, manualPromptError].forEach(content.addSubview)
+        [heading, input, sourceBox, sourceLabel, promptHeading, manualPrompt, manual, automatic, inputError, manualPromptError].forEach(content.addSubview)
         inputError.isHidden = true; manualPromptError.isHidden = true
         sourceBox.addSubview(sourceField); automatic.outlined = true; manual.outlined = true
         input.text.delegate = self; manualPrompt.text.delegate = self
@@ -102,6 +110,7 @@ final class ExperienceRowCell: NSTableCellView {
         table.addTableColumn(NSTableColumn(identifier: .init("experience"))); table.headerView = nil; table.style = .plain
         table.backgroundColor = .clear; table.rowHeight = 70; table.intercellSpacing = NSSize(width: 0, height: 4)
         table.selectionHighlightStyle = .none; table.dataSource = self; table.delegate = self
+        table.menuForRow = { [weak self] row in self?.removalMenu(row: row) }
         listScroll.drawsBackground = false; listScroll.hasVerticalScroller = true; listScroll.scrollerStyle = .overlay; listScroll.documentView = table
         status.maximumNumberOfLines = 2; status.lineBreakMode = .byWordWrapping
         configure.toolTip = "配置 DeepSeek API key"; configure.setAccessibilityLabel("配置 DeepSeek API key")
@@ -109,7 +118,12 @@ final class ExperienceRowCell: NSTableCellView {
         manual.onPress = { [weak self] in self?.clearInputErrors(); self?.controller.beginManual() }
         automatic.onPress = { [weak self] in self?.clearInputErrors(); self?.controller.beginAutomatic() }
         cancel.onPress = { [weak controller] in controller?.cancel() }
-        generate.outlined = true; backButton.outlined = true
+        [generate, backButton, add, cancelAdd, cancel].forEach { $0.outlined = true }
+        add.onPress = { [weak self] in
+            guard let self else { return }; self.stashEditor(); self.completedCount = 0; self.clearInputErrors()
+            self.controller.beginAddition(); self.window?.makeFirstResponder(self.input.text)
+        }
+        cancelAdd.onPress = { [weak self] in self?.clearInputErrors(); self?.controller.cancelAddition() }
         generate.onPress = { [weak self] in self?.stashEditor(); self?.controller.generateSelected() }
         organize.onPress = { [weak self] in self?.confirmCurrent() }
         configure.onPress = { [weak self] in self?.onConfigure?() }
@@ -128,12 +142,12 @@ final class ExperienceRowCell: NSTableCellView {
         needsLayout = true
     }
     private func submitInput() {
-        if controller.busy { controller.cancel(); return }
+        if controller.identifying { controller.cancel(); return }
         clearInputErrors()
         let field: EditorText?, label: NSTextField?
-        if controller.session.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if controller.session.intake.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             field = input; label = inputError; inputError.stringValue = "请先粘贴作者原文或链接。"
-        } else if controller.isManualEntry && (controller.session.manualPrompt ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        } else if controller.isManualEntry && (controller.session.intake.manualPrompt ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             field = manualPrompt; label = manualPromptError; manualPromptError.stringValue = "请填写 Prompt。"
         } else { field = nil; label = nil }
         if let field, let label {
@@ -152,18 +166,40 @@ final class ExperienceRowCell: NSTableCellView {
         cell.checkbox.setAccessibilityLabel("选择用于生成：" + item.title)
         cell.stateLabel.stringValue = controller.activeItemID == item.id ? "生成中" : controller.failed && controller.failedItemID == item.id ? "失败，可重试" : item.confirmed == true ? "已确认" : item.suggestion != nil ? "有新建议" : item.candidate?.prompt.isEmpty == false ? "待确认" : "未生成"
         cell.discuss.title = item.candidate?.title.isEmpty == false ? item.candidate!.title : item.title
-        cell.discuss.toolTip = cell.discuss.title; cell.active = controller.session.currentID == item.id
+        cell.discuss.toolTip = cell.discuss.title; cell.active = !showingInput && controller.session.currentID == item.id
         cell.discuss.setAccessibilityLabel("查看经验：" + item.title); cell.discuss.isEnabled = !controller.saving
         cell.checkbox.onPress = { [weak controller] in controller?.toggle(item.id) }
         cell.discuss.onPress = { [weak self] in self?.choose(item.id) }
         return cell
     }
     func choose(_ id: String) { stashEditor(); controller.choose(id) }
+    func removalMenu(row: Int) -> NSMenu? {
+        guard !controller.saving, controller.session.items.indices.contains(row) else { return nil }
+        let item = controller.session.items[row], menu = NSMenu()
+        let action = NSMenuItem(title: item.needsRemovalConfirmation ? "移除这条经验…" : "移除这条经验", action: #selector(removeFromMenu), keyEquivalent: "")
+        action.target = self; action.representedObject = item.id; menu.addItem(action); return menu
+    }
+    @objc private func removeFromMenu(_ sender: NSMenuItem) {
+        if let id = sender.representedObject as? String { requestRemoval(id) }
+    }
+    private func requestRemoval(_ id: String) {
+        stashEditor()
+        guard !controller.saving, let item = controller.session.items.first(where: { $0.id == id }) else { return }
+        guard item.needsRemovalConfirmation else { removeItem(id); return }
+        guard let window else { return }
+        let title = item.candidate?.title.isEmpty == false ? item.candidate!.title : item.title
+        ManagementWindowController.removalAlert(title).beginSheetModal(for: window) { [weak self] response in
+            if response == .alertSecondButtonReturn { self?.removeItem(id) }
+        }
+    }
+    private func removeItem(_ id: String) {
+        let wasCurrent = controller.current?.id == id
+        controller.remove(id)
+        if wasCurrent, !showingInput { window?.makeFirstResponder(editor?.removeExperience ?? add) }
+    }
     func stashEditor() {
         guard let editor, let current = controller.current, editor.id == current.id else { return }
-        let draft = editor.draft, e = draft.entry
-        let value = GeneratedPrompt(title: e.title, summary: e.summary, explanation: e.explanation, prompt: e.prompt,
-                                    categoryID: draft.newCategoryName == nil ? e.categoryID : nil, newCategoryName: draft.newCategoryName)
+        let value = GeneratedPrompt(draft: editor.draft)
         // A pristine skeleton is not a generated candidate; edits explicitly create one.
         if value != current.candidate, (current.candidate != nil || displayedCandidate != nil) {
             displayedCandidate = value; controller.updateCandidate(current.id, value); controller.onChange?()
@@ -179,72 +215,92 @@ final class ExperienceRowCell: NSTableCellView {
     }
     func showCompletion(_ count: Int) { completedCount = count; update() }
     func update() {
-        let session = controller.session, current = controller.current, initial = session.items.isEmpty && completedCount == 0
+        let session = controller.session, current = controller.current, initial = showingInput
+        let empty = session.items.isEmpty && !initial, intake = session.intake
         let manualMode = initial && controller.isManualEntry
-        panel.isHidden = initial; content.isHidden = false
+        panel.isHidden = session.items.isEmpty; content.isHidden = !initial
         [heading, input, sourceBox, sourceLabel, send, automatic].forEach { $0.isHidden = !initial }
         [promptHeading, manualPrompt].forEach { $0.isHidden = !manualMode }
         manual.isHidden = !initial; manual.selectedStyle = manualMode; automatic.selectedStyle = !manualMode
-        completed.isHidden = completedCount == 0 || !session.items.isEmpty
-        completed.stringValue = "已保存 \(completedCount) 条经验"
-        if initial, input.text.string != session.input { input.text.string = session.input; input.text.undoManager?.removeAllActions() }
-        if initial, manualPrompt.text.string != (session.manualPrompt ?? "") { manualPrompt.text.string = session.manualPrompt ?? "" }
-        if sourceField.stringValue != session.source { sourceField.stringValue = session.source }
+        completed.isHidden = !empty
+        completed.stringValue = completedCount > 0 ? "已保存 \(completedCount) 条经验" : "没有待整理的经验"
+        if initial, input.text.string != intake.input { input.text.string = intake.input; input.text.undoManager?.removeAllActions() }
+        if initial, manualPrompt.text.string != (intake.manualPrompt ?? "") { manualPrompt.text.string = intake.manualPrompt ?? ""; manualPrompt.text.undoManager?.removeAllActions() }
+        if initial, sourceField.stringValue != intake.origin.source { sourceField.stringValue = intake.origin.source }
         heading.stringValue = manualMode ? "作者原文" : "作者原文或链接"
-        send.title = controller.busy ? "取消识别" : manualMode ? "继续编辑" : "识别经验"
+        send.title = controller.identifying ? "取消识别" : manualMode ? "继续编辑" : "识别经验"
         if let current, displayedID != current.id || displayedCandidate != current.candidate {
             let c = current.candidate
             let entry = PromptEntry(id: current.id, categoryID: c?.categoryID ?? "", title: c?.title ?? current.title,
-                                    summary: c?.summary ?? "", originalExperience: current.original, source: session.source,
+                                    summary: c?.summary ?? "", originalExperience: current.original, source: session.origin(for: current).source,
                                     explanation: c?.explanation ?? "", prompt: c?.prompt ?? "")
             editor?.removeFromSuperview()
             let next = PromptEditorView(draft: EditorDraft(entry: entry, original: nil, newCategoryName: c?.newCategoryName), categories: categories, workbenchMode: true)
             editor = next; addSubview(next); displayedID = current.id; displayedCandidate = c
             next.onChange = { [weak self, weak next] in
                 guard let self, let next, self.editor === next else { return }
-                if self.displayedCandidate == nil {
-                    let d = next.draft, e = d.entry
-                    self.displayedCandidate = GeneratedPrompt(title: e.title, summary: e.summary, explanation: e.explanation, prompt: e.prompt, categoryID: d.newCategoryName == nil ? e.categoryID : nil, newCategoryName: d.newCategoryName)
-                }
+                if self.displayedCandidate == nil { self.displayedCandidate = GeneratedPrompt(draft: next.draft) }
                 self.stashEditor()
             }
             next.generateButton.onPress = { [weak self] in
                 guard let self else { return }; self.stashEditor()
                 if self.controller.busy { self.controller.cancel() } else { self.controller.generateCurrent() }
             }
+            next.removeExperience.onPress = { [weak self] in self?.requestRemoval(current.id) }
         }
         if current == nil { editor?.removeFromSuperview(); editor = nil; displayedID = nil; displayedCandidate = nil }
         editor?.setEditingEnabled(!controller.saving)
+        editor?.isHidden = initial; editor?.removeExperience.isEnabled = !controller.saving
         editor?.generateButton.isEnabled = !controller.saving && (!controller.busy || controller.activeItemID == current?.id)
-        editor?.generateButton.title = controller.activeItemID == current?.id && controller.busy ? "取消生成" : current?.candidate?.prompt.isEmpty == false ? "重新生成" : "DeepSeek 生成"
+        let generatingCurrent = controller.activeItemID != nil && controller.activeItemID == current?.id
+        editor?.generateButton.title = generatingCurrent ? "取消生成" : current?.suggestion != nil ? "查看新建议" : current?.candidate?.prompt.isEmpty == false ? "重新生成" : "DeepSeek 生成"
         count.stringValue = "识别出的经验"
         selectedCount.stringValue = "已勾选 \(session.selected.count) / \(session.items.count)"
         status.stringValue = controller.status; status.textColor = controller.failed ? Theme.error : Theme.secondary
+        status.isHidden = empty && !controller.failed
         status.toolTip = controller.status
         table.reloadData()
         [send, generate, manual, automatic, configure].forEach { $0.isEnabled = !controller.busy && !controller.saving }
-        send.isEnabled = !controller.saving
+        send.isEnabled = !controller.saving && (!controller.busy || controller.identifying)
         generate.isEnabled = generate.isEnabled && !session.selected.isEmpty
         organize.isEnabled = current != nil && !controller.busy && !controller.saving && current?.confirmed != true
         organize.title = current?.confirmed == true ? "已确认" : session.items.last?.id == current?.id ? "确认此条" : "确认并下一条"
-        [generate, organize].forEach { $0.isHidden = session.items.isEmpty }
-        backButton.isHidden = initial; cancel.isHidden = initial || !controller.busy
+        [generate, organize].forEach { $0.isHidden = initial || empty }
+        add.title = empty ? "继续添加" : "添加经验"; add.isHidden = initial; add.isEnabled = !controller.saving
+        add.primary = empty
+        backButton.title = empty ? "查看内容库" : "返回内容库"
+        backButton.isHidden = initial && session.items.isEmpty
+        cancelAdd.isHidden = !initial || session.addition == nil; cancelAdd.isEnabled = !controller.saving
+        cancel.title = controller.identifying ? "停止识别" : "停止生成"
+        cancel.isHidden = !controller.busy || (initial && controller.identifying) || (!initial && generatingCurrent)
+        configure.isHidden = empty
         input.text.isEditable = !controller.saving; manualPrompt.text.isEditable = !controller.saving
         sourceField.isEditable = !controller.busy && !controller.saving
         needsLayout = true; layoutSubtreeIfNeeded()
     }
     override func layout() {
         super.layout(); let w = bounds.width, h = bounds.height - 56
-        let initial = controller.session.items.isEmpty && completedCount == 0
+        guard w > 0, h > 0 else { return }
+        let initial = showingInput, hasItems = !controller.session.items.isEmpty
         let manualMode = initial && controller.isManualEntry
-        let left: CGFloat = initial ? 0 : min(300, w * 0.30)
+        let left: CGFloat = hasItems ? min(300, w * 0.30) : 0
         panel.frame = NSRect(x: 0, y: 0, width: left, height: h)
-        content.frame = NSRect(x: initial ? 0 : left + 20, y: 0, width: initial ? w : w - left - 20, height: h)
+        let offset = hasItems ? left + 20 : 0
+        content.frame = NSRect(x: offset, y: 0, width: w - offset, height: h)
         let cw = content.bounds.width
-        editor?.frame = content.frame; content.isHidden = editor != nil
+        editor?.frame = content.frame
         configure.frame = NSRect(x: w - 36, y: h + 12, width: 36, height: 36)
         cancel.frame = NSRect(x: w - 116, y: h + 12, width: 68, height: 36)
-        status.frame = NSRect(x: initial ? 0 : 144, y: h + 12, width: max(80, w - 500), height: 36)
+        let statusX: CGFloat = hasItems ? 144 : 0
+        status.frame = NSRect(x: statusX, y: h + 12, width: max(80, w - statusX - (initial ? 408 : 436)), height: 36)
+        backButton.frame = NSRect(x: 0, y: h + 12, width: 128, height: 40)
+        if hasItems {
+            count.frame = NSRect(x: 16, y: 20, width: left - 138, height: 24)
+            add.frame = NSRect(x: left - 114, y: 12, width: 102, height: 36)
+            listScroll.frame = NSRect(x: 8, y: 58, width: left - 16, height: h - 108)
+            table.tableColumns.first?.width = listScroll.contentSize.width
+            selectedCount.frame = NSRect(x: 16, y: h - 36, width: left - 32, height: 20)
+        }
         if initial {
             let col = manualMode ? (cw - 76) / 2 : cw - 56
             automatic.frame = NSRect(x: 28, y: 24, width: 128, height: 40)
@@ -259,18 +315,20 @@ final class ExperienceRowCell: NSTableCellView {
             inputError.frame = NSRect(x: 28, y: input.frame.maxY + 2, width: col, height: 16)
             manualPromptError.frame = NSRect(x: col + 48, y: manualPrompt.frame.maxY + 2, width: col, height: 16)
             send.frame = NSRect(x: w - 144, y: h + 16, width: 144, height: 40)
-            configure.frame = NSRect(x: w - 192, y: h + 18, width: 36, height: 36)
-        } else {
-            count.frame = NSRect(x: 16, y: 20, width: left - 32, height: 24)
-            listScroll.frame = NSRect(x: 8, y: 58, width: left - 16, height: h - 108)
-            table.tableColumns.first?.width = listScroll.contentSize.width
-            selectedCount.frame = NSRect(x: 16, y: h - 36, width: left - 32, height: 20)
-            backButton.frame = NSRect(x: 0, y: h + 12, width: 128, height: 40)
+            cancelAdd.frame = NSRect(x: w - 248, y: h + 16, width: 92, height: 40)
+            let keyX = w - (cancelAdd.isHidden ? 192 : 292)
+            configure.frame = NSRect(x: keyX, y: h + 18, width: 36, height: 36)
+            cancel.frame = NSRect(x: keyX - 92, y: h + 16, width: 80, height: 40)
+        } else if hasItems {
             generate.frame = NSRect(x: w - 312, y: h + 12, width: 128, height: 40)
             organize.frame = NSRect(x: w - 172, y: h + 12, width: 172, height: 40)
             configure.frame = NSRect(x: w - 356, y: h + 14, width: 36, height: 36)
             cancel.frame = NSRect(x: w - 436, y: h + 14, width: 72, height: 36)
-            completed.frame = NSRect(x: 32, y: 48, width: cw - 64, height: 40)
+        } else {
+            let textWidth = (completed.stringValue as NSString).size(withAttributes: [.font: completed.font!]).width
+            completed.frame = NSRect(x: 0, y: 20, width: ceil(textWidth) + 12, height: 40)
+            add.frame = NSRect(x: completed.frame.maxX + 24, y: 20, width: 124, height: 40)
+            backButton.frame = NSRect(x: add.frame.maxX + 12, y: 20, width: 124, height: 40)
         }
     }
 }

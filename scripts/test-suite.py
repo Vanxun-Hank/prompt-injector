@@ -47,9 +47,15 @@ def validate_ui_report(report):
                 'v7/partial-save-1', 'v7/partial-save-5', 'v7/partial-save-20', 'v7/completed-one', 'v7/remaining-draft-5', 'v7/remaining-draft-20',
                 'capture/management-inline-editor', 'capture/management-inline-minimum', 'capture/management-grid-minimum',
                 'capture/v7-partial-1', 'capture/v7-partial-5', 'capture/v7-partial-20',
-                'v7/input-validation-near-field', 'v7/input-mode-retains-prompt', 'capture/experience-input-error'}
+                'v7/input-validation-near-field', 'v7/input-mode-retains-prompt', 'capture/experience-input-error',
+                'management/icon-copy-feedback', 'management/copy-all-reading-tabs', 'management/icon-actions-keyboard-focus',
+                'management/direct-actions-search', 'management/direct-actions-category',
+                'workbench/compact-completion', 'workbench/add-keeps-list-and-focus', 'workbench/view-existing-while-adding',
+                'workbench/append-source-visible', 'workbench/context-remove-keeps-current', 'workbench/edited-removal-cancel-keeps-draft',
+                'workbench/removal-selects-adjacent', 'workbench/remove-last-empties-detail', 'workbench/continue-from-empty', 'workbench/continue-after-save',
+                'workbench/removed-clears-old-save-count', 'capture/workbench-complete', 'capture/workbench-addition-minimum'}
     captures = [c for c in checks if str(c.get('name', '')).startswith('capture/')]
-    return (report.get('passed') is True and len(checks) >= 85 and len(captures) == 43
+    return (report.get('passed') is True and len(checks) >= 85 and len(captures) == 45
             and required <= names and all(c.get('passed') is True for c in checks))
 
 def main():

@@ -17,6 +17,7 @@ enum DiagnosticEvent: String, Codable, Sendable {
     case clipboardRestored = "clipboard.restored", clipboardKept = "clipboard.kept"
     case storageOpened = "storage.opened", storageMigrating = "storage.migrating", storageQuery = "storage.query", storageFailed = "storage.failed"
     case storageSaved = "storage.saved", draftSaved = "draft.saved", usageRecorded = "usage.recorded"
+    case experienceChanged = "experience.changed"
     case storageSaveStarted = "storage.save_started"
     case managementOpened = "management.opened", managementSave = "management.save"
     case libraryRefreshed = "library.refreshed", libraryLoadDiscarded = "library.load_discarded"

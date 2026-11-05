@@ -6,12 +6,16 @@ import CSQLite
     var identifyCalls: [(String, CheckedContinuation<[ExperienceItem], Error>)] = []
     var discussionCalls: [(ExperienceItem, CheckedContinuation<String, Error>)] = []
     var organizeCalls: [(ExperienceItem, [PromptCategory], CheckedContinuation<GeneratedPrompt, Error>)] = []
+    var organizeOrigins: [ExperienceOrigin] = []
     var fetched: [URL] = []
     var page = "原文甲。\n原文乙。"
     func fetch(_ url: URL) async throws -> String { fetched.append(url); return page }
     func identify(_ text: String) async throws -> [ExperienceItem] { try await withCheckedThrowingContinuation { identifyCalls.append((text, $0)) } }
     func discuss(_ item: ExperienceItem, source: String, context: String) async throws -> String { try await withCheckedThrowingContinuation { discussionCalls.append((item, $0)) } }
-    func organize(_ item: ExperienceItem, source: String, context: String, categories: [PromptCategory]) async throws -> GeneratedPrompt { try await withCheckedThrowingContinuation { organizeCalls.append((item, categories, $0)) } }
+    func organize(_ item: ExperienceItem, source: String, context: String, categories: [PromptCategory]) async throws -> GeneratedPrompt {
+        organizeOrigins.append(.init(raw: context, source: source))
+        return try await withCheckedThrowingContinuation { organizeCalls.append((item, categories, $0)) }
+    }
 }
 
 final class ExperienceTests: XCTestCase {

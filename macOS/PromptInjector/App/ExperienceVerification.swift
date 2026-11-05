@@ -111,6 +111,8 @@ extension AppDelegate {
         view.confirmCurrent(); view.confirmCurrent(); manager.saveEditor()
         await until { !model.saving && view.completedCount == 2 }
         check("v7/all-saved-without-resurrected-input", model.session.items.isEmpty && view.editor == nil && !manager.root.saveButton.isEnabled)
+        check("workbench/compact-completion", view.panel.isHidden && view.content.isHidden && !view.add.isHidden && view.backButton.title == "查看内容库")
+        await capture("workbench-complete")
         let saved = try? repository.managedSummaries(category: nil, query: "审核后的短标题")
         check("experience/batch-saved-with-sixth-category", saved?.count == 1 && (try? repository.categories().count) == 6)
         check("experience/draft-not-resurrected-after-save", (try? repository.experienceDraft()) == nil)
@@ -123,9 +125,9 @@ extension AppDelegate {
             view.backButton.performClick(nil); await until { manager.root.page == .library && manager.root.libraryView.items.contains { $0.summary.id == entry.id } }
             manager.root.libraryView.openItem(id: entry.id); await until { manager.selectedEntry?.id == entry.id }
             check("v7/saved-card-immediately-available", manager.selectedEntry == entry)
-            manager.confirmDeletion = { _ in false }; manager.deleteSelected()
+            manager.confirmDeletion = { _ in false }; manager.root.libraryView.deleteButton.performClick(nil)
             check("experience/delete-cancel-keeps-entry", (try? repository.entry(id: entry.id, category: entry.categoryID)) != nil)
-            manager.confirmDeletion = { _ in true }; manager.deleteSelected(); await until { !manager.isSaving }
+            manager.confirmDeletion = { _ in true }; manager.root.libraryView.deleteButton.performClick(nil); await until { !manager.isSaving }
             check("experience/deleted-entry-no-longer-loads", (try? repository.entry(id: entry.id, category: entry.categoryID)) == nil)
         }
         manager.presentExperience(ExperienceSession())
@@ -141,6 +143,36 @@ extension AppDelegate {
             manualView.manual.performClick(nil)
             manualView.send.performClick(nil)
             check("experience/manual-paste-skips-generation", manager.root.experienceView?.editor?.promptText.text.string == "自己粘贴的明确指令" && manualModel.current?.original == "手动录入的作者原文" && !manualModel.busy)
+            let old = manualModel.current
+            manualView.add.performClick(nil)
+            manualView.input.text.string = ExperienceFixtureService.raw
+            manualView.textDidChange(Notification(name: NSText.didChangeNotification, object: manualView.input.text))
+            manualView.sourceField.stringValue = "https://github.com/example/second"; manualView.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+            await capture("workbench-addition-minimum")
+            check("workbench/add-keeps-list-and-focus", manualView.showingInput && !manualView.panel.isHidden && manualView.editor?.isHidden == true && window.firstResponder === manualView.input.text)
+            if let old { manualView.choose(old.id) }
+            check("workbench/view-existing-while-adding", !manualView.showingInput && manualView.editor?.promptText.text.string == "自己粘贴的明确指令")
+            manualView.add.performClick(nil); manualView.send.performClick(nil)
+            await until { !manualModel.busy && manualModel.session.items.count == 3 }
+            check("workbench/append-source-visible", manualModel.session.items.first == old && manualView.editor?.sourceField.stringValue == "https://github.com/example/second")
+            let currentID = manualModel.current?.id
+            if let action = manualView.removalMenu(row: 2)?.items.first, let selector = action.action { NSApp.sendAction(selector, to: action.target, from: action) }
+            check("workbench/context-remove-keeps-current", manualModel.current?.id == currentID && manualView.selectedCount.stringValue == "已勾选 1 / 2")
+            if let old { manualView.choose(old.id) }
+            manualView.editor?.removeExperience.performClick(nil)
+            await until { window.attachedSheet != nil }
+            if let sheet = window.attachedSheet { window.endSheet(sheet, returnCode: .alertFirstButtonReturn) }
+            await until { window.attachedSheet == nil }
+            check("workbench/edited-removal-cancel-keeps-draft", manualModel.current?.id == old?.id && manualModel.session.items.count == 2)
+            manualView.editor?.removeExperience.performClick(nil)
+            await until { window.attachedSheet != nil }
+            if let sheet = window.attachedSheet { window.endSheet(sheet, returnCode: .alertSecondButtonReturn) }
+            await until { manualModel.session.items.count == 1 }
+            check("workbench/removal-selects-adjacent", manualModel.current?.id == currentID && manualView.editor?.id == currentID)
+            manualView.editor?.removeExperience.performClick(nil)
+            check("workbench/remove-last-empties-detail", manualModel.current == nil && manualView.editor == nil && manualView.panel.isHidden && !manualView.add.isHidden)
+            manualView.add.performClick(nil)
+            check("workbench/continue-from-empty", manualView.showingInput && manager.root.page == .experience && manualView.input.text.string.isEmpty)
             try? await manualModel.finish()
         }
         for count in [1, 5, 20] {
@@ -161,6 +193,13 @@ extension AppDelegate {
                 check("v7/remaining-draft-\(count)", (try? repo.experienceDraft()?.items.count) == count - 1 && workspace.editor?.id == session.items[1].id)
             } else { check("v7/completed-one", workspace.completedCount == 1 && (try? repo.experienceDraft()) == nil) }
             await capture("v7-partial-\(count)", target: form.window)
+            if count == 1 {
+                workspace.add.performClick(nil)
+                check("workbench/continue-after-save", workspace.showingInput && form.root.page == .experience && workspace.input.text.string.isEmpty && workspace.status.stringValue.isEmpty)
+            } else if count == 5 {
+                model.remove(session.items[1].id)
+                check("workbench/removed-clears-old-save-count", workspace.status.stringValue.isEmpty && workspace.selectedCount.stringValue == "已勾选 0 / 3")
+            }
             try? await model.finish(); form.window?.orderOut(nil)
         }
         await withCheckedContinuation { continuation in library.flush { continuation.resume() } }

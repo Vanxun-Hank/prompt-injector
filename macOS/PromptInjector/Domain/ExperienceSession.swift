@@ -20,13 +20,37 @@ struct ExperienceItem: Codable, Equatable {
     var suggestion: GeneratedPrompt?
     var confirmed: Bool?
     var generatedMessageCount: Int?
+    var originID: String?
+    var edited: Bool?
 
     var needsGeneration: Bool { candidate == nil || generatedMessageCount != messages.count }
+    var needsRemovalConfirmation: Bool { edited ?? (candidate != nil) }
     func entry(source: String) throws -> EditorDraft {
         guard let c = candidate else { throw GenerationFailure.invalidOutput }
         return EditorDraft(entry: .init(id: id, categoryID: c.categoryID ?? "", title: c.title, summary: c.summary,
                                        originalExperience: original, source: source, explanation: c.explanation, prompt: c.prompt),
                            original: nil, newCategoryName: c.newCategoryName)
+    }
+}
+
+struct ExperienceOrigin: Codable, Equatable {
+    var raw: String
+    var source: String
+}
+
+struct ExperienceIntake: Codable, Equatable {
+    var input = ""
+    var origin = ExperienceOrigin(raw: "", source: "")
+    var manualPrompt: String?
+    var manualEntry: Bool?
+}
+
+extension GeneratedPrompt {
+    init(draft: EditorDraft) {
+        let entry = draft.entry
+        self.init(title: entry.title, summary: entry.summary, explanation: entry.explanation, prompt: entry.prompt,
+                  categoryID: draft.newCategoryName == nil && !entry.categoryID.isEmpty ? entry.categoryID : nil,
+                  newCategoryName: draft.newCategoryName)
     }
 }
 
@@ -40,6 +64,19 @@ struct ExperienceSession: Codable, Equatable {
     var manualPrompt: String?
     var manualEntry: Bool?
     var currentID: String?
+    var origins: [String: ExperienceOrigin]?
+    var addition: ExperienceIntake?
+    var intake: ExperienceIntake {
+        get { addition ?? .init(input: input, origin: .init(raw: raw, source: source), manualPrompt: manualPrompt, manualEntry: manualEntry) }
+        set {
+            if addition != nil { addition = newValue }
+            else { input = newValue.input; raw = newValue.origin.raw; source = newValue.origin.source; manualPrompt = newValue.manualPrompt; manualEntry = newValue.manualEntry }
+        }
+    }
+    var hasDraft: Bool { !items.isEmpty || addition != nil || !input.isEmpty || !source.isEmpty || manualPrompt != nil }
+    func origin(for item: ExperienceItem) -> ExperienceOrigin {
+        item.originID.flatMap { origins?[$0] } ?? .init(raw: raw, source: source)
+    }
     var current: ExperienceItem? { items.first { $0.id == currentID } }
     var selected: [ExperienceItem] { items.filter(\.selected) }
     var confirmed: [ExperienceItem] { items.filter { $0.confirmed == true } }
@@ -47,17 +84,29 @@ struct ExperienceSession: Codable, Equatable {
         var next = self
         next.items.removeAll { $0.confirmed == true }
         if !next.items.contains(where: { $0.id == next.currentID }) { next.currentID = next.items.first?.id }
-        if next.items.isEmpty { next.input = ""; next.raw = ""; next.source = ""; next.manualPrompt = nil; next.manualEntry = nil }
+        next.pruneOrigins()
         next.revision += 1
         return next
+    }
+    mutating func pruneOrigins() {
+        let referenced = Set(items.compactMap(\.originID))
+        origins = referenced.isEmpty ? nil : origins?.filter { referenced.contains($0.key) }
+        if !items.contains(where: { $0.originID == nil }) {
+            input = ""; raw = ""; source = ""; manualPrompt = nil; manualEntry = nil
+        }
     }
     func validate() throws {
         guard UUID(uuidString: id) != nil, revision >= 0, input.count <= 60_000, source.count <= 10_000,
               raw.count <= 60_000, (manualPrompt?.count ?? 0) <= 32_000, items.count <= 100,
-              Set(items.map(\.id)).count == items.count else { throw GenerationFailure.invalidOutput }
+              Set(items.map(\.id)).count == items.count,
+              (origins?.count ?? 0) <= items.count,
+              origins?.values.allSatisfy({ $0.raw.count <= 60_000 && $0.source.count <= 10_000 }) != false,
+              (addition?.input.count ?? 0) <= 60_000, (addition?.origin.raw.count ?? 0) <= 60_000,
+              (addition?.origin.source.count ?? 0) <= 10_000, (addition?.manualPrompt?.count ?? 0) <= 32_000 else { throw GenerationFailure.invalidOutput }
         for item in items {
             guard UUID(uuidString: item.id) != nil, !item.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  item.title.count <= 200, !item.original.isEmpty, raw.contains(item.original), item.input.count <= 60_000,
+                  item.originID == nil || item.originID.flatMap({ origins?[$0] }) != nil,
+                  item.title.count <= 200, !item.original.isEmpty, origin(for: item).raw.contains(item.original), item.input.count <= 60_000,
                   item.messages.count <= 500, item.messages.allSatisfy({ !$0.content.isEmpty && $0.content.count <= 60_000 }) else { throw GenerationFailure.invalidOutput }
         }
         guard currentID == nil || items.contains(where: { $0.id == currentID }) else { throw GenerationFailure.invalidOutput }
