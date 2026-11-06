@@ -31,6 +31,63 @@ final class ExperienceTests: XCTestCase {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         return (dir, SQLitePromptRepository(url: dir.appendingPathComponent("library.sqlite3")))
     }
+    func testDraftValidationRejectsMissingMismatchedAndDuplicateOriginBindings() throws {
+        var draft = session()
+        draft.origins = ["second": .init(raw: draft.items[1].original, source: "https://github.com/example/second")]
+        draft.items[1].originID = "second"
+        XCTAssertNoThrow(try draft.validate())
+
+        var missing = draft
+        missing.items[1].originID = "unknown"
+        XCTAssertThrowsError(try missing.validate())
+        var mismatched = draft
+        mismatched.items[0].originID = "second"
+        XCTAssertThrowsError(try mismatched.validate())
+        var duplicate = draft
+        duplicate.items[1].id = duplicate.items[0].id
+        XCTAssertThrowsError(try duplicate.validate())
+    }
+
+    func testPartialSavePreservesDraftInvariantsAcrossSelectionConfirmationAndCurrentItem() throws {
+        var draft = session()
+        let second = ExperienceOrigin(raw: "第二篇甲。第二篇乙。", source: "https://github.com/example/second")
+        let third = ExperienceOrigin(raw: "第三篇。", source: "https://www.reddit.com/r/example/third")
+        draft.origins = ["second": second, "third": third]
+        draft.items = [draft.items[0],
+                       .init(title: "甲", original: "第二篇甲。", originID: "second"),
+                       .init(title: "乙", original: "第二篇乙。", originID: "second"),
+                       .init(title: "丙", original: "第三篇。", originID: "third")]
+        draft.addition = .init(input: "待录入", origin: .init(raw: "", source: "https://example.com/pending"))
+        draft.revision = 7
+        let indices = draft.items.indices
+        let originByIndex = [ExperienceOrigin(raw: draft.raw, source: draft.source), second, second, third]
+        for selected in 0..<16 {
+            for confirmed in 0..<16 {
+                for current in [nil] + draft.items.map({ Optional($0.id) }) {
+                    var value = draft
+                    value.currentID = current
+                    for i in indices {
+                        value.items[i].selected = selected & (1 << i) != 0
+                        value.items[i].confirmed = confirmed & (1 << i) != 0
+                    }
+                    let survivors = indices.filter { confirmed & (1 << $0) == 0 }
+                    let next = value.remaining
+                    let scenario = "selected=\(selected), confirmed=\(confirmed), current=\(current ?? "none")"
+                    let expectedItems = survivors.map { value.items[$0] }
+                    XCTAssertEqual(next.items, expectedItems, scenario)
+                    XCTAssertEqual(next.currentID, expectedItems.contains { $0.id == current } ? current : expectedItems.first?.id, scenario)
+                    XCTAssertEqual(next.items.map { next.origin(for: $0) }, survivors.map { originByIndex[$0] }, scenario)
+                    XCTAssertEqual(Set(next.origins?.keys.map { $0 } ?? []), Set(expectedItems.compactMap(\.originID)), scenario)
+                    XCTAssertEqual(next.raw, survivors.contains(0) ? draft.raw : "", scenario)
+                    XCTAssertEqual(next.source, survivors.contains(0) ? draft.source : "", scenario)
+                    XCTAssertEqual(next.addition, draft.addition, scenario)
+                    XCTAssertEqual(next.revision, draft.revision + 1, scenario)
+                    XCTAssertNoThrow(try next.validate(), scenario)
+                }
+            }
+        }
+    }
+
     func testExtractionRejectsRewrittenQuotesDuplicateQuotesAndUnknownFields() throws {
         let raw = "仅在可复现时先写测试。\n\n不要虚构来源。"
         func data(_ rows: [[String: String]]) throws -> Data { try JSONSerialization.data(withJSONObject: ["experiences": rows]) }
@@ -131,6 +188,48 @@ final class ExperienceTests: XCTestCase {
         XCTAssertEqual(try repo.experienceDraft(), s.remaining)
         XCTAssertThrowsError(try repo.storeExperienceDraft(s)); XCTAssertEqual(try repo.experienceDraft()?.items[0].input, "尚未发出的理解")
     }
+    func testMultiSourceSaveRollsBackAfterArchiveWhenDraftUpdateFails() throws {
+        let (dir, repo) = repository()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var draft = session()
+        let second = ExperienceOrigin(raw: draft.items[1].original, source: "https://github.com/example/second")
+        draft.origins = ["second": second]
+        draft.items[1].originID = "second"
+        draft.addition = .init(input: "下一篇待处理", origin: .init(raw: "", source: "https://example.com/pending"))
+        for i in draft.items.indices {
+            draft.items[i].candidate = candidate("事务测试\(i)", name: "事务新增分类")
+            draft.items[i].confirmed = true
+        }
+        try repo.storeExperienceDraft(draft)
+
+        var activity: OpaquePointer?
+        let activityPath = dir.appendingPathComponent("library-activity.sqlite3").path
+        XCTAssertEqual(sqlite3_open(activityPath, &activity), SQLITE_OK)
+        defer { sqlite3_close(activity) }
+        let trigger = """
+            CREATE TRIGGER fail_draft_update BEFORE UPDATE ON experience_drafts
+            WHEN EXISTS (SELECT 1 FROM experience_archives)
+            BEGIN SELECT RAISE(ABORT, 'draft update after archive'); END
+            """
+        XCTAssertEqual(sqlite3_exec(activity, trigger, nil, nil, nil), SQLITE_OK)
+        XCTAssertThrowsError(try repo.saveExperiences(draft))
+
+        let reopened = SQLitePromptRepository(url: dir.appendingPathComponent("library.sqlite3"))
+        XCTAssertEqual(try reopened.experienceDraft(), draft)
+        XCTAssertEqual(try reopened.categories().count, 5)
+        XCTAssertTrue(try reopened.managedSummaries(category: nil, query: "事务测试").isEmpty)
+        XCTAssertEqual(sqlite3_exec(activity, "DROP TRIGGER fail_draft_update", nil, nil, nil), SQLITE_OK)
+        // Retrying the same revision also proves the unique archive row was rolled back.
+        let saved = try reopened.saveExperiences(draft)
+        XCTAssertEqual(saved.map(\.id), draft.items.map(\.id))
+        XCTAssertEqual(saved.map(\.source), [draft.source, second.source])
+        XCTAssertEqual(saved.map(\.originalExperience), draft.items.map(\.original))
+        XCTAssertEqual(try reopened.experienceDraft(), draft.remaining)
+        XCTAssertEqual(try reopened.experienceDraft()?.addition, draft.addition)
+        XCTAssertThrowsError(try reopened.saveExperiences(draft))
+        XCTAssertEqual(try reopened.managedSummaries(category: nil, query: "事务测试").count, 2)
+    }
+
     func testDeleteKeepsHistoryAndCategoryRejectsStaleSnapshotAndDoesNotResurrectOnRestart() throws {
         let (dir, repo) = repository(); defer { try? FileManager.default.removeItem(at: dir) }
         let original = try XCTUnwrap(PromptSeed.entries().first); try repo.recordUsage(original, kind: .copy, date: Date())

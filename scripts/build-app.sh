@@ -24,7 +24,8 @@ rm -rf "$app_dir/Contents/Resources/PromptInjector_PromptInjector.bundle" "$app_
 cp "$bin_dir/PromptInjector_PromptInjector.bundle/prompts.json" "$app_dir/Contents/Resources/"
 rm -rf "$app_dir/Contents/Resources/Design"
 cp -R "$bin_dir/PromptInjector_PromptInjector.bundle/Design" "$app_dir/Contents/Resources/Design"
-iconset="$PWD/build/AppIcon.iconset"
+build_dir="${PROMPT_INJECTOR_BUILD_DIR:-$PWD/build}"
+iconset="$build_dir/AppIcon.iconset"
 mkdir -p "$iconset"
 for size in 16 32 128 256 512; do
   sips -z "$size" "$size" "$app_dir/Contents/Resources/Design/AppIcon.png" --out "$iconset/icon_${size}x${size}.png" >/dev/null
@@ -67,11 +68,10 @@ fi
 codesign --force --sign "$signing_identity" "$app_dir"
 codesign --verify --strict "$app_dir"
 project_app="$PWD/build/Prompt Injector.app"
-mkdir -p "$PWD/build"
-cat > "$PWD/build/build-info.json" <<META
+cat > "$build_dir/build-info.json" <<META
 {"version":"0.6.1","buildID":"$build_id","sourceFingerprint":"$source_fingerprint","revision":"$revision"}
 META
-if [ "$app_dir" != "$project_app" ]; then
+if [ -z "${PROMPT_INJECTOR_BUILD_DIR:-}" ] && [ "$app_dir" != "$project_app" ]; then
   if [ -d "$project_app" ] && [ ! -L "$project_app" ]; then
     bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$project_app/Contents/Info.plist")
     if [ "$bundle_id" != "com.promptinjector.local" ]; then

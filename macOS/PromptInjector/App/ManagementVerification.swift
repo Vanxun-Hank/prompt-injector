@@ -2,7 +2,7 @@ import AppKit
 import CSQLite
 
 extension AppDelegate {
-    @MainActor func verifyManagement(output: String) async -> [[String: Any]] {
+    @MainActor func verifyManagement(output: String, captures: Bool) async -> [[String: Any]] {
         guard CommandLine.arguments.contains("--verify-ui"), let controller, let directory = verificationDatabaseDirectory else { return [["name": "management/isolated-database", "passed": false]] }
         var checks: [[String: Any]] = []
         let pasteboard = NSPasteboard.general
@@ -26,6 +26,7 @@ extension AppDelegate {
             }
             let captured = target ?? window
             captured.contentView?.layoutSubtreeIfNeeded()
+            guard captures else { return }
             try? await Task.sleep(nanoseconds: 180_000_000)
             let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
             // Capture this live window even if desktop activity changes stacking or position.
@@ -194,10 +195,12 @@ extension AppDelegate {
         }
         manager.root.all.performClick(nil)
         window.setContentSize(NSSize(width: 1100, height: 720)); window.center()
+        await until { manager.root.libraryView.items.contains { $0.summary.id == initial.id } }
         await capture("management-grid-minimum")
         check("v7/grid-minimum-two-columns", manager.root.libraryView.grid.columnCount == 2)
-        if let first = manager.root.libraryView.items.first { manager.root.libraryView.openItem(id: first.summary.id) }
-        await until { manager.selectedEntry != nil }
+        manager.root.libraryView.openItem(id: initial.id)
+        await until { manager.selectedEntry?.id == initial.id }
+        check("management/minimum-detail-loads", manager.selectedEntry?.id == initial.id)
         manager.root.libraryView.segments.buttons[0].performClick(nil)
         await capture("management-minimum")
         check("management/minimum-layout-actions-accessible", manager.root.newButton.frame.maxX <= manager.root.band.bounds.width && manager.root.libraryView.copyButton.frame.minX >= 0)

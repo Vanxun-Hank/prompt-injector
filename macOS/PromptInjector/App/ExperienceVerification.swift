@@ -18,7 +18,7 @@ struct ExperienceFixtureService: ExperienceServing {
 }
 
 extension AppDelegate {
-    @MainActor func verifyExperiences(output: String) async -> [[String: Any]] {
+    @MainActor func verifyExperiences(output: String, captures: Bool) async -> [[String: Any]] {
         var checks: [[String: Any]] = []
         func check(_ name: String, _ pass: Bool) { checks.append(["name": name, "passed": pass]) }
         func until(_ condition: () -> Bool) async {
@@ -33,13 +33,16 @@ extension AppDelegate {
         manager.show(); window.setContentSize(NSSize(width: 1440, height: 960))
         func capture(_ name: String, target: NSWindow? = nil) async {
             let window = target ?? window
-            if let screen = NSScreen.screens.first(where: { $0.visibleFrame.width >= window.frame.width && $0.visibleFrame.height >= window.frame.height }) {
+            // Resizing should keep the window on its current display when it fits there.
+            let screens = [window.screen].compactMap { $0 } + NSScreen.screens
+            if let screen = screens.first(where: { $0.visibleFrame.width >= window.frame.width && $0.visibleFrame.height >= window.frame.height }) {
                 let area = screen.visibleFrame
                 window.setFrameOrigin(NSPoint(x: area.midX - window.frame.width / 2, y: area.midY - window.frame.height / 2))
                 check("capture-placement/" + name, area.contains(window.frame))
             }
             window.contentView?.layoutSubtreeIfNeeded(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
             window.displayIfNeeded()
+            guard captures else { return }
             var captured = false, attempts = 0
             // Newly created WindowServer surfaces can reject the first capture; retry only the image, never the checks.
             for attempt in 1...3 {
@@ -175,6 +178,59 @@ extension AppDelegate {
             check("workbench/continue-from-empty", manualView.showingInput && manager.root.page == .experience && manualView.input.text.string.isEmpty)
             try? await manualModel.finish()
         }
+        let continuationURL = parent.appendingPathComponent("continuation/library.sqlite3")
+        let continuationLibrary = PromptLibrary(repository: SQLitePromptRepository(url: continuationURL))
+        let workbench = ManagementWindowController(library: continuationLibrary, experienceService: ExperienceFixtureService())
+        workbench.show()
+        await until { workbench.root.categoryItems.count == 5 }
+        var firstDraft = ExperienceSession()
+        firstDraft.raw = "第一篇作者原文。"; firstDraft.source = "https://x.com/example/status/1"
+        let firstItem = ExperienceItem(title: "第一篇经验", original: firstDraft.raw,
+            candidate: .init(title: "第一篇经验", summary: "第一篇条件", explanation: "保留原文", prompt: "第一篇已编辑的指令", categoryID: "coding", newCategoryName: nil))
+        firstDraft.items = [firstItem]; firstDraft.currentID = firstItem.id
+        workbench.presentExperience(firstDraft)
+        guard let before = workbench.root.experienceView else { return checks }
+        let secondSource = "https://github.com/example/continuation"
+        before.add.performClick(nil)
+        before.input.text.string = ExperienceFixtureService.raw
+        before.textDidChange(Notification(name: NSText.didChangeNotification, object: before.input.text))
+        before.sourceField.stringValue = secondSource
+        before.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+        before.choose(firstItem.id)
+        let returnedToFirst = before.editor?.promptText.text.string == firstItem.candidate?.prompt
+        workbench.root.all.performClick(nil)
+        await until { workbench.root.page == .library && workbench.experience == nil }
+        workbench.root.newButton.performClick(nil)
+        await until { workbench.root.experienceView != nil }
+        guard let restored = workbench.root.experienceView, let resumed = workbench.experience else { return checks }
+        check("workbench/reopen-pending-addition", returnedToFirst && restored !== before && restored.showingInput
+              && restored.input.text.string == ExperienceFixtureService.raw && restored.sourceField.stringValue == secondSource
+              && resumed.session.items == [firstItem])
+        restored.send.performClick(nil)
+        await until { !resumed.busy && resumed.session.items.count == 3 }
+        guard resumed.session.items.count == 3 else { return checks }
+        let secondItem = resumed.session.items[1], remaining = resumed.session.items[2]
+        if !secondItem.selected { resumed.toggle(secondItem.id) }
+        restored.generate.performClick(nil)
+        await until { !resumed.busy && resumed.session.items[1].candidate != nil }
+        restored.choose(firstItem.id); restored.confirmCurrent()
+        restored.choose(secondItem.id); restored.confirmCurrent()
+        workbench.root.saveButton.performClick(nil)
+        await until { !resumed.saving && resumed.session.items.count == 1 }
+        let remainingIsCorrect = resumed.session.items.map(\.id) == [remaining.id]
+            && resumed.session.origin(for: remaining).source == secondSource && restored.editor?.id == remaining.id
+        workbench.root.all.performClick(nil)
+        let results = workbench.root.libraryView
+        await until { workbench.root.page == .library && results.items.contains { $0.summary.id == secondItem.id } }
+        var detailMatches = true
+        for (item, source) in [(firstItem, firstDraft.source), (secondItem, secondSource)] {
+            results.openItem(id: item.id)
+            await until { workbench.selectedEntry?.id == item.id }
+            results.segments.buttons[1].performClick(nil)
+            detailMatches = detailMatches && results.document.text.string == source + "\n\n" + item.original
+        }
+        check("workbench/reopened-partial-save-keeps-sources", remainingIsCorrect && detailMatches)
+        workbench.window?.orderOut(nil)
         for count in [1, 5, 20] {
             let dir = parent.appendingPathComponent("v7-\(count)/library.sqlite3")
             let repo = SQLitePromptRepository(url: dir), local = PromptLibrary(repository: repo)

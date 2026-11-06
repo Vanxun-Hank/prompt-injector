@@ -6,6 +6,7 @@ extension AppDelegate {
         Task { @MainActor in
             guard let controller, let window = controller.window else { return }
             let args = CommandLine.arguments
+            let captures = !args.contains("--qa-no-captures")
             let output: String
             if let index = args.firstIndex(of: "--qa-output"), args.count > index + 1 { output = args[index + 1] }
             else { output = FileManager.default.currentDirectoryPath + "/artifacts/ui" }
@@ -30,7 +31,9 @@ extension AppDelegate {
             @MainActor func capture(_ name: String) async {
                 window.makeKeyAndOrderFront(nil)
                 NSApp.activate(ignoringOtherApps: true)
-                await settle()
+                await ready()
+                guard captures else { return }
+                try? await Task.sleep(nanoseconds: 350_000_000)
                 let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
                 let f = name == "default-shell" ? window.frame.insetBy(dx: -24, dy: -24) : window.frame
                 let screenTop = NSScreen.screens.first?.frame.maxY ?? 0
@@ -223,10 +226,10 @@ extension AppDelegate {
             v.navigate(to: .categories, animate: false)
             await ready()
             backdrop.orderOut(nil)
-            let managementChecks = await verifyManagement(output: output)
+            let managementChecks = await verifyManagement(output: output, captures: captures)
             checks.append(contentsOf: managementChecks)
-            checks.append(contentsOf: await verifyExperiences(output: output))
-            let report: [String: Any] = ["buildID": BuildIdentity.current.buildID, "sourceFingerprint": BuildIdentity.current.sourceFingerprint, "sessionID": DiagnosticLog.shared.sessionID.uuidString, "completedAt": ISO8601DateFormatter().string(from: Date()), "checks": checks, "passed": checks.allSatisfy { $0["passed"] as? Bool == true }, "capture": "Live macOS desktop region with a controlled backdrop window", "macOS": ProcessInfo.processInfo.operatingSystemVersionString, "notVerified": ["Codex real input insertion and target loss after capture (requires app accessibility permission)", "Chinese input-source candidate selection (marked-text guard tested)", "manual edge/corner dragging", "changing global system reduced transparency setting (rendering path tested directly)"]]
+            checks.append(contentsOf: await verifyExperiences(output: output, captures: captures))
+            let report: [String: Any] = ["buildID": BuildIdentity.current.buildID, "sourceFingerprint": BuildIdentity.current.sourceFingerprint, "sessionID": DiagnosticLog.shared.sessionID.uuidString, "completedAt": ISO8601DateFormatter().string(from: Date()), "checks": checks, "passed": checks.allSatisfy { $0["passed"] as? Bool == true }, "capturesEnabled": captures, "capture": captures ? "Live macOS desktop region with a controlled backdrop window" : "disabled", "macOS": ProcessInfo.processInfo.operatingSystemVersionString, "notVerified": ["Codex real input insertion and target loss after capture (requires app accessibility permission)", "Chinese input-source candidate selection (marked-text guard tested)", "manual edge/corner dragging", "changing global system reduced transparency setting (rendering path tested directly)"]]
             if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) {
                 try? data.write(to: URL(fileURLWithPath: output + "/report.json"))
             }

@@ -1,0 +1,28 @@
+name: macOS tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  merge-tests:
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Show Swift toolchain
+        run: swift --version
+      - name: Run merge suite
+        run: python3 scripts/test-suite.py --tier merge
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-test-evidence
+          path: artifacts/tests/
+          retention-days: 7
