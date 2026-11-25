@@ -127,7 +127,7 @@ final class ManagementTests: XCTestCase {
     }
     func testMainActorTerminationExitsAfterPendingUsageIsCommitted() async throws {
         let process = Process()
-        process.executableURL = Bundle.module.bundleURL.deletingLastPathComponent().appendingPathComponent("PromptInjector")
+        process.executableURL = Bundle(for: Self.self).bundleURL.deletingLastPathComponent().appendingPathComponent("PromptInjector")
         process.arguments = ["--verify-termination", url.path]
         try process.run()
         for _ in 0..<150 {

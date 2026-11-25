@@ -198,8 +198,9 @@ import Carbon
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        guard !flag else { return true }
         if management != nil { openManagement() }
-        else if !flag { controller?.show(capturing: externalTarget()) }
+        else { controller?.show(capturing: externalTarget()) }
         return true
     }
     func applicationWillTerminate(_ notification: Notification) {

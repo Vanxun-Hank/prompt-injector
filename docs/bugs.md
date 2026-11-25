@@ -1,5 +1,15 @@
 # Bug 与回归记录
 
+## 管理窗口与全屏关闭 · 2026-11-18
+
+安装包 `20261105T165652Z` 的日志记录了进入全屏，此后到应用退出没有对应的退出全屏事件。隔离原生测试在旧窗口实现上复现了两处失败（`artifacts/tests/20261118T014736.936181Z/summary.json`）。
+
+- `management/reopen-keeps-launcher`：Dock 重开回调忽略了已有可见窗口，直接唤起曾经创建过的管理窗口。改为已有可见窗口时保留系统行为。原生检查同时验证无可见窗口时仍可重开管理窗口，以及管理窗口使用独立的 AppKit Space 策略。
+- `management/native-fullscreen-close`：红叉保存草稿后直接隐藏全屏窗口，系统没有完成退出全屏。改为保存成功后请求退出全屏，在系统回调后隐藏窗口。重复点击共用一次关闭流程。验证退出通知、窗口隐藏及草稿落盘。
+- 新工具链的 SwiftPM 使用嵌套资源目录，XCTest 也可能把模块资源放在测试包内。打包兼容两种资源目录，正式 App 从自身资源取素材，退出回归按测试包位置定位可执行文件。
+
+在解锁的 Mac 上从仓库根目录运行 `python3 scripts/test-suite.py --tier desktop`。结果写入 `artifacts/tests/<UTC时间>/`。窗口诊断沿用 `management.window_state`，只记录关闭、退出全屏和保存失败等固定阶段。
+
 ## 测试分层 · 2026-11-06
 
 从使用统计切回内容库时，原生验证曾在异步列表返回前打开详情。截图采集的等待掩盖了这个时序依赖。拆开截图后，失败报告 `artifacts/tests/20261106T144031.006948Z/summary.json` 记录了 `management/async-timeout`。验证改为等待指定条目出现在列表，再打开并核对同一 ID。原生两层均要求 `management/minimum-detail-loads` 证据。

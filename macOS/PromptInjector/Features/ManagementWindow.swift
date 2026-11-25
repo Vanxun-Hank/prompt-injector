@@ -399,6 +399,9 @@ final class ManagementSummaryCell: NSTableCellView {
     private var reviewID: String?
     private var generationTask: Task<Void, Never>?
     private var generationID: UUID?
+    private enum CloseState { case idle, saving, ready }
+    private var closeState = CloseState.idle
+    private var fullScreenTransition = false
     var isGenerating: Bool { generationID != nil }
     var confirmCandidateReplacement: () -> Bool = {
         let alert = NSAlert(); alert.messageText = "重新整理当前经验？"
@@ -447,7 +450,7 @@ final class ManagementSummaryCell: NSTableCellView {
         let window = ManagementWindow(contentRect: NSRect(x: 0, y: 0, width: 1440, height: 960), styleMask: [.titled, .fullSizeContentView, .resizable, .closable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "Prompt Injector · 内容管理"; window.identifier = .init("PromptInjector.Management")
         window.titlebarAppearsTransparent = true; window.titleVisibility = .hidden
-        window.collectionBehavior.insert(.fullScreenPrimary)
+        window.collectionBehavior = [.managed, .fullScreenPrimary, .primary]
         window.minSize = NSSize(width: 1100, height: 720); window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: .darkAqua); window.backgroundColor = .clear; window.isOpaque = false
         window.isMovableByWindowBackground = true; window.hasShadow = true; window.contentView = root
@@ -494,15 +497,28 @@ final class ManagementSummaryCell: NSTableCellView {
         showWindow(nil); window?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
         if root.page == .library, root.libraryView.presentation == .grid { root.libraryView.grid.focus() }
     }
+    func windowWillEnterFullScreen(_ notification: Notification) { fullScreenTransition = true }
+    func windowWillExitFullScreen(_ notification: Notification) { fullScreenTransition = true }
     func windowDidEnterFullScreen(_ notification: Notification) {
+        fullScreenTransition = false
         DiagnosticLog.shared.write(.managementWindowState, fields: .init(stage: "fullscreen-entered"))
+        finishCloseIfReady()
     }
     func windowDidExitFullScreen(_ notification: Notification) {
+        fullScreenTransition = false
         DiagnosticLog.shared.write(.managementWindowState, fields: .init(stage: "fullscreen-exited"))
+        finishCloseIfReady()
     }
     func windowDidFailToEnterFullScreen(_ window: NSWindow) {
+        fullScreenTransition = false
         DiagnosticLog.shared.write(.managementWindowState, level: .error, fields: .init(stage: "fullscreen-enter-failed"))
         root.footer.stringValue = "无法进入全屏，请重试。"
+        finishCloseIfReady()
+    }
+    func windowDidFailToExitFullScreen(_ window: NSWindow) {
+        fullScreenTransition = false
+        if closeState == .ready { closeState = .idle }
+        DiagnosticLog.shared.write(.managementWindowState, level: .error, fields: .init(stage: "fullscreen-exit-failed"))
     }
     private func chooseCategory(_ category: String) {
         navigationGeneration += 1
@@ -876,8 +892,28 @@ final class ManagementSummaryCell: NSTableCellView {
         root.libraryView.navigationEnabled = !saving; root.backButton.isEnabled = !saving
     }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        prepareForTermination { [weak self] success in if success { self?.window?.orderOut(nil) } }
+        guard closeState == .idle else { return false }
+        closeState = .saving
+        DiagnosticLog.shared.write(.managementWindowState, fields: .init(stage: "close-requested"))
+        prepareForTermination { [weak self] success in
+            guard let self else { return }
+            self.closeState = success ? .ready : .idle
+            if success { self.finishCloseIfReady() }
+            else { DiagnosticLog.shared.write(.managementWindowState, level: .warning, fields: .init(stage: "close-draft-save-failed")) }
+        }
         return false
+    }
+    private func finishCloseIfReady() {
+        guard closeState == .ready, !fullScreenTransition, let window else { return }
+        // Ordering out a fullscreen window can leave its Space on screen with no window.
+        if window.styleMask.contains(.fullScreen) {
+            DiagnosticLog.shared.write(.managementWindowState, fields: .init(stage: "close-exiting-fullscreen"))
+            window.toggleFullScreen(nil)
+            return
+        }
+        closeState = .idle
+        window.orderOut(nil)
+        DiagnosticLog.shared.write(.managementWindowState, fields: .init(stage: "close-hidden"))
     }
 }
 

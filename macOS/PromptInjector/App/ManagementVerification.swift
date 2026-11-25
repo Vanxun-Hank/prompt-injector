@@ -17,6 +17,8 @@ extension AppDelegate {
         guard let manager = management, let window = manager.window else { return [["name": "management/window", "passed": false]] }
         await until { controller.window?.isVisible == false }
         check("management/separate-native-window", window !== controller.window && window.styleMask.contains(.titled))
+        check("management/own-space-policy", window.collectionBehavior.contains([.managed, .primary])
+              && window.collectionBehavior.intersection([.canJoinAllSpaces, .moveToActiveSpace, .fullScreenAuxiliary, .canJoinAllApplications]).isEmpty)
         let backdrop = NSWindow(contentRect: window.frame.insetBy(dx: -24, dy: -24), styleMask: [.borderless], backing: .buffered, defer: false)
         backdrop.backgroundColor = Theme.hex(0x242424)
         func capture(_ name: String, target: NSWindow? = nil) async {
@@ -282,11 +284,30 @@ extension AppDelegate {
             await until { exitedFullScreen }
         }
         check("management/native-fullscreen-exit", exitedFullScreen && !window.styleMask.contains(.fullScreen))
-        NotificationCenter.default.removeObserver(entered); NotificationCenter.default.removeObserver(exited)
         manager.root.editor = nil
         window.performClose(nil)
         await until { !window.isVisible }
         check("management/native-close-hides", !window.isVisible)
+        controller.show(capturing: nil)
+        _ = applicationShouldHandleReopen(NSApp, hasVisibleWindows: controller.window?.isVisible == true)
+        check("management/reopen-keeps-launcher", controller.isPresented && !window.isVisible)
+        controller.hide(animated: false)
+        _ = applicationShouldHandleReopen(NSApp, hasVisibleWindows: false)
+        check("management/dock-reopens-closed-window", window.isVisible)
+        enteredFullScreen = false; exitedFullScreen = false
+        window.toggleFullScreen(nil)
+        await until { enteredFullScreen }
+        if enteredFullScreen {
+            manager.newEntry()
+            await until { manager.root.editor != nil }
+            manager.root.editor?.promptText.text.string = "全屏关闭回归测试草稿"
+            window.performClose(nil)
+            await until { !window.isVisible }
+        }
+        check("management/native-fullscreen-close", enteredFullScreen && exitedFullScreen && !window.styleMask.contains(.fullScreen) && !window.isVisible)
+        let draftRepository = SQLitePromptRepository(url: directory.appendingPathComponent("library.sqlite3"))
+        check("management/fullscreen-close-saves-draft", (try? draftRepository.editorDraft()?.entry.prompt) == "全屏关闭回归测试草稿")
+        NotificationCenter.default.removeObserver(entered); NotificationCenter.default.removeObserver(exited)
         backdrop.orderOut(nil); management = nil
         if pasteboard.changeCount == copiedChangeCount {
             pasteboard.clearContents()

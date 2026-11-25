@@ -21,9 +21,13 @@ app_dir="${PROMPT_INJECTOR_APP_OUTPUT:-$HOME/Library/Application Support/Prompt 
 mkdir -p "$app_dir/Contents/MacOS" "$app_dir/Contents/Resources"
 cp "$bin_dir/PromptInjector" "$app_dir/Contents/MacOS/PromptInjector"
 rm -rf "$app_dir/Contents/Resources/PromptInjector_PromptInjector.bundle" "$app_dir/Contents/MacOS/PromptInjector_PromptInjector.bundle"
-cp "$bin_dir/PromptInjector_PromptInjector.bundle/prompts.json" "$app_dir/Contents/Resources/"
+resources="$bin_dir/PromptInjector_PromptInjector.bundle"
+if [ -d "$resources/Contents/Resources" ]; then
+  resources="$resources/Contents/Resources"
+fi
+cp "$resources/prompts.json" "$app_dir/Contents/Resources/"
 rm -rf "$app_dir/Contents/Resources/Design"
-cp -R "$bin_dir/PromptInjector_PromptInjector.bundle/Design" "$app_dir/Contents/Resources/Design"
+cp -R "$resources/Design" "$app_dir/Contents/Resources/Design"
 build_dir="${PROMPT_INJECTOR_BUILD_DIR:-$PWD/build}"
 iconset="$build_dir/AppIcon.iconset"
 mkdir -p "$iconset"

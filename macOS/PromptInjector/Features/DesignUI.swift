@@ -16,10 +16,9 @@ enum DesignAssets {
     static func image(_ name: String, template: Bool = true) -> NSImage? {
         if cache[name] == nil {
             // AppKit's SVG renderer omits Figma blur filters; PNG exports preserve the authored glow.
-            let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "Design")
-                ?? Bundle.module.url(forResource: name, withExtension: "png", subdirectory: "Design")
-                ?? Bundle.main.url(forResource: name, withExtension: "svg", subdirectory: "Design")
-                ?? Bundle.module.url(forResource: name, withExtension: "svg", subdirectory: "Design")
+            let bundle = Bundle.main.url(forResource: "Design", withExtension: nil) == nil ? Bundle.module : Bundle.main
+            let url = bundle.url(forResource: name, withExtension: "png", subdirectory: "Design")
+                ?? bundle.url(forResource: name, withExtension: "svg", subdirectory: "Design")
             if let url, let image = NSImage(contentsOf: url) {
                 if url.pathExtension == "png", name == "Logo" || name.hasPrefix("Dot-") {
                     if let pixels = image.representations.first {

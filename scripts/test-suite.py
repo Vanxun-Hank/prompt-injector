@@ -33,6 +33,8 @@ REQUIRED_BEHAVIOR = {
     'management/minimum-detail-loads',
     'statistics/all-columns-fit', 'management/native-window-controls',
     'management/native-close-hides', 'management/native-minimize', 'management/native-zoom',
+    'management/own-space-policy', 'management/reopen-keeps-launcher', 'management/dock-reopens-closed-window',
+    'management/native-fullscreen-close', 'management/fullscreen-close-saves-draft',
     'management/native-fullscreen-space', 'management/native-fullscreen-exit',
     'management/regular-application', 'application/branded-icon', 'application/transparent-icon-canvas',
     'keyboard/blocked-command-return-no-route', 'keyboard/recovered-command-return-routes',
